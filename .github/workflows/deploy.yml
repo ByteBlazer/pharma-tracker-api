@@ -47,7 +47,7 @@ jobs:
 
           echo "Deploying to $ENV environment on port $PORT"
 
-                    echo "📁 Creating deployment directories..."
+          echo "📁 Creating deployment directories..."
           # Create parent directory and deployment directory with proper permissions
           ssh ubuntu@${{ secrets.EC2_HOST }} "sudo mkdir -p /opt/pharma-tracker-api && sudo chown ubuntu:ubuntu /opt/pharma-tracker-api"
           ssh ubuntu@${{ secrets.EC2_HOST }} "mkdir -p /opt/pharma-tracker-api/$ENV"
@@ -77,16 +77,16 @@ jobs:
           scp package.json package-lock.json ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/
           echo "✅ Package files copied"
 
-                      echo "⚙️ Setting up environment configuration..."
-            # Copy environment file and replace sensitive values
-            scp env.$ENV ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/env.$ENV
-            echo "✅ Environment file copied"
+          echo "⚙️ Setting up environment configuration..."
+          # Copy environment file and replace sensitive values
+          scp env.$ENV ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/env.$ENV
+          echo "✅ Environment file copied"
 
-                      echo "🔐 Injecting secrets into environment file..."
-            # Replace sensitive values with secrets
-            ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.DB_PASSWORD }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
-            ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.JWT_SECRET }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
-            echo "✅ Secrets injected successfully"
+          echo "🔐 Injecting secrets into environment file..."
+          # Replace sensitive values with secrets
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.DB_PASSWORD }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.JWT_SECRET }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+          echo "✅ Secrets injected successfully"
 
           echo "📥 Installing production dependencies..."
           # Install production dependencies on EC2
@@ -153,5 +153,11 @@ jobs:
           # Try to start the app manually to see detailed error
           ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && timeout 10s node dist/main.js || echo 'Manual startup test completed'"
           echo "✅ Manual startup test completed"
+
+          echo "🌐 Ensuring Nginx is running..."
+          # Start Nginx if not running, restart if already running
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sudo systemctl is-active nginx || sudo systemctl start nginx"
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sudo systemctl enable nginx"
+          echo "✅ Nginx is running and enabled"
 
           echo "🎉 Deployment to $ENV completed successfully!"
