@@ -53,6 +53,19 @@ jobs:
           ssh ubuntu@${{ secrets.EC2_HOST }} "mkdir -p /opt/pharma-tracker-api/$ENV"
           echo "✅ Directories created successfully"
 
+          echo "💾 Checking available disk space..."
+          # Check available disk space and fail if less than 10%
+          DISK_USAGE=$(ssh ubuntu@${{ secrets.EC2_HOST }} "df /opt/pharma-tracker-api | tail -1 | awk '{print \$5}' | sed 's/%//'")
+          AVAILABLE_SPACE=$((100 - DISK_USAGE))
+          echo "📊 Current disk usage: ${DISK_USAGE}%, Available: ${AVAILABLE_SPACE}%"
+
+          if [ "$AVAILABLE_SPACE" -lt 10 ]; then
+            echo "❌ ERROR: Insufficient disk space! Only ${AVAILABLE_SPACE}% available, need at least 10%"
+            echo "Please free up disk space on EC2 instance before deploying"
+            exit 1
+          fi
+          echo "✅ Sufficient disk space available (${AVAILABLE_SPACE}%)"
+
           echo "🔍 Verifying Node.js and npm availability..."
           # Verify Node.js and npm are available
           ssh ubuntu@${{ secrets.EC2_HOST }} "export PATH=\$PATH:/usr/bin:/usr/local/bin && node --version && npm --version"
@@ -168,5 +181,20 @@ jobs:
           # Test and reload Nginx configuration
           ssh ubuntu@${{ secrets.EC2_HOST }} "sudo nginx -t && sudo systemctl reload nginx"
           echo "✅ Nginx is running and enabled with new configuration"
+
+          echo "🧹 Cleaning up deployment artifacts..."
+          # Clean up temporary files
+          ssh ubuntu@${{ secrets.EC2_HOST }} "rm -f /tmp/nginx.conf"
+          echo "✅ Temporary files cleaned"
+
+          echo "🗂️ Cleaning up old deployment files..."
+          # Remove old dist and node_modules to save space
+          ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && rm -rf dist.old node_modules.old env.old 2>/dev/null || true"
+          echo "✅ Old deployment files cleaned"
+
+          echo "💾 Checking disk space..."
+          # Check available disk space
+          ssh ubuntu@${{ secrets.EC2_HOST }} "df -h /opt/pharma-tracker-api"
+          echo "✅ Disk space checked"
 
           echo "🎉 Deployment to $ENV completed successfully!"
