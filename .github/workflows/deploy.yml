@@ -77,16 +77,16 @@ jobs:
           scp package.json package-lock.json ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/
           echo "✅ Package files copied"
 
-          echo "⚙️ Setting up environment configuration..."
-          # Copy environment file and replace sensitive values
-          scp env.$ENV ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/.env
-          echo "✅ Environment file copied"
+                      echo "⚙️ Setting up environment configuration..."
+            # Copy environment file and replace sensitive values
+            scp env.$ENV ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/env.$ENV
+            echo "✅ Environment file copied"
 
-          echo "🔐 Injecting secrets into environment file..."
-          # Replace sensitive values with secrets
-          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.DB_PASSWORD }}/g' /opt/pharma-tracker-api/$ENV/.env"
-          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.JWT_SECRET }}/g' /opt/pharma-tracker-api/$ENV/.env"
-          echo "✅ Secrets injected successfully"
+                      echo "🔐 Injecting secrets into environment file..."
+            # Replace sensitive values with secrets
+            ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.DB_PASSWORD }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+            ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.JWT_SECRET }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+            echo "✅ Secrets injected successfully"
 
           echo "📥 Installing production dependencies..."
           # Install production dependencies on EC2
