@@ -67,8 +67,9 @@ jobs:
           echo "✅ Node.js and npm verified (version 20+)"
 
           echo "📦 Copying built application files..."
-          # Copy built files
-          scp -r dist/* ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/
+          # Copy built files (preserve dist structure)
+          ssh ubuntu@${{ secrets.EC2_HOST }} "mkdir -p /opt/pharma-tracker-api/$ENV/dist"
+          scp -r dist/* ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/dist/
           echo "✅ Application files copied"
 
           echo "📋 Copying package files..."
