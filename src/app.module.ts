@@ -18,7 +18,6 @@ import { ThrottleGuard } from "./common/guards/throttle.guard";
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
-      schema: process.env.DB_SCHEMA,
       autoLoadEntities: true,
       synchronize: process.env.NODE_ENV !== "production", // Only sync in non-production
       logging: process.env.NODE_ENV !== "production",
