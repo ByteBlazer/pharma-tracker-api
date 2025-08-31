@@ -154,10 +154,19 @@ jobs:
           ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && timeout 10s node dist/main.js || echo 'Manual startup test completed'"
           echo "✅ Manual startup test completed"
 
+          echo "🌐 Deploying Nginx configuration..."
+          # Copy Nginx configuration file
+          scp nginx/nginx.conf ubuntu@${{ secrets.EC2_HOST }}:/tmp/nginx.conf
+          # Deploy Nginx configuration
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sudo cp /tmp/nginx.conf /etc/nginx/sites-available/pharmatracker && sudo ln -sf /etc/nginx/sites-available/pharmatracker /etc/nginx/sites-enabled/ && sudo rm -f /etc/nginx/sites-enabled/default"
+          echo "✅ Nginx configuration deployed"
+
           echo "🌐 Ensuring Nginx is running..."
           # Start Nginx if not running, restart if already running
           ssh ubuntu@${{ secrets.EC2_HOST }} "sudo systemctl is-active nginx || sudo systemctl start nginx"
           ssh ubuntu@${{ secrets.EC2_HOST }} "sudo systemctl enable nginx"
-          echo "✅ Nginx is running and enabled"
+          # Test and reload Nginx configuration
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sudo nginx -t && sudo systemctl reload nginx"
+          echo "✅ Nginx is running and enabled with new configuration"
 
           echo "🎉 Deployment to $ENV completed successfully!"
