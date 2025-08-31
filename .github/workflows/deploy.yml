@@ -56,7 +56,15 @@ jobs:
           echo "🔍 Verifying Node.js and npm availability..."
           # Verify Node.js and npm are available
           ssh ubuntu@${{ secrets.EC2_HOST }} "export PATH=\$PATH:/usr/bin:/usr/local/bin && node --version && npm --version"
-          echo "✅ Node.js and npm verified"
+
+          # Check Node.js version compatibility
+          NODE_VERSION=$(ssh ubuntu@${{ secrets.EC2_HOST }} "export PATH=\$PATH:/usr/bin:/usr/local/bin && node --version | cut -d'v' -f2 | cut -d'.' -f1")
+          if [ "$NODE_VERSION" -lt 20 ]; then
+            echo "❌ ERROR: Node.js version 20+ required, but found version $NODE_VERSION"
+            echo "Please upgrade Node.js on EC2 instance"
+            exit 1
+          fi
+          echo "✅ Node.js and npm verified (version 20+)"
 
           echo "📦 Copying built application files..."
           # Copy built files
@@ -84,7 +92,7 @@ jobs:
           ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && export PATH=\$PATH:/usr/bin:/usr/local/bin && npm ci --omit=dev"
           echo "✅ Dependencies installed"
 
-          echo "🛑 Stopping existing service (if running)..."gg
+          echo "🛑 Stopping existing service (if running)..."
           # Stop existing service if running
           ssh ubuntu@${{ secrets.EC2_HOST }} "sudo systemctl stop pharma-tracker-$ENV || true"
           echo "✅ Service stopped"
