@@ -51,6 +51,9 @@ jobs:
           ssh ubuntu@${{ secrets.EC2_HOST }} "sudo mkdir -p /opt/pharma-tracker-api && sudo chown ubuntu:ubuntu /opt/pharma-tracker-api"
           ssh ubuntu@${{ secrets.EC2_HOST }} "mkdir -p /opt/pharma-tracker-api/$ENV"
 
+          # Verify Node.js and npm are available
+          ssh ubuntu@${{ secrets.EC2_HOST }} "export PATH=\$PATH:/usr/bin:/usr/local/bin && node --version && npm --version"
+
           # Copy built files
           scp -r dist/* ubuntu@${{ secrets.EC2_HOST }}:/opt/pharma-tracker-api/$ENV/
 
@@ -65,7 +68,7 @@ jobs:
           ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/will-be-replaced-at-deployment/${{ secrets.JWT_SECRET }}/g' /opt/pharma-tracker-api/$ENV/.env"
 
           # Install production dependencies on EC2
-          ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && npm ci --only=production"
+          ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && export PATH=\$PATH:/usr/bin:/usr/local/bin && npm ci --only=production"
 
           # Stop existing service if running
           ssh ubuntu@${{ secrets.EC2_HOST }} "sudo systemctl stop pharma-tracker-$ENV || true"
