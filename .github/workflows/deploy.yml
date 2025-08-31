@@ -125,4 +125,24 @@ jobs:
           ssh ubuntu@${{ secrets.EC2_HOST }} "sudo systemctl status pharma-tracker-$ENV --no-pager"
           echo "✅ Service status checked"
 
+          echo "🔍 Checking service logs for errors..."
+          # Check recent logs for error details
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sudo journalctl -u pharma-tracker-$ENV --no-pager -n 20"
+          echo "✅ Service logs checked"
+
+          echo "🔍 Checking if port is in use..."
+          # Check if port is already in use
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sudo netstat -tlnp | grep :$PORT || echo 'Port $PORT is available'"
+          echo "✅ Port availability checked"
+
+          echo "🔍 Checking application directory and files..."
+          # Check if all files are in place
+          ssh ubuntu@${{ secrets.EC2_HOST }} "ls -la /opt/pharma-tracker-api/$ENV/"
+          echo "✅ Directory contents checked"
+
+          echo "🧪 Testing application startup manually..."
+          # Try to start the app manually to see detailed error
+          ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && timeout 10s node dist/main.js || echo 'Manual startup test completed'"
+          echo "✅ Manual startup test completed"
+
           echo "🎉 Deployment to $ENV completed successfully!"
