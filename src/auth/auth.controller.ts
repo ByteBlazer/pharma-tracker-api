@@ -1,16 +1,26 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { LoginDto, AuthResponseDto } from './dto/auth.dto';
-import { SkipAuth } from './decorators/skip-auth.decorator';
+import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import { AuthService } from "./auth.service";
+import { SkipAuth } from "./decorators/skip-auth.decorator";
+import { AuthRequestDto } from "./dto/auth-request.dto";
+import { AuthResponseDto } from "./dto/auth-response.dto";
 
-@Controller('auth')
+@Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('authenticate')
+  @Post("generate-otp")
   @HttpCode(HttpStatus.OK)
   @SkipAuth()
-  async authenticate(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.authenticate(loginDto);
+  async generateOtp(@Body() authRequestDto: AuthRequestDto) {
+    return this.authService.generateOtp(authRequestDto);
+  }
+
+  @Post("validate-otp")
+  @HttpCode(HttpStatus.OK)
+  @SkipAuth()
+  async validateOtp(
+    @Body() authRequestDto: AuthRequestDto
+  ): Promise<AuthResponseDto> {
+    return this.authService.validateOtp(authRequestDto);
   }
 }
