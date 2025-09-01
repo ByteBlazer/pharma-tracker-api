@@ -130,9 +130,15 @@ export class AuthService {
       }
     }
 
+    const user = await this.appUserRepository.findOne({
+      where: { mobile: authRequestDto.mobile },
+    });
+
     // Create JWT payload
     const payload = {
-      username: authRequestDto.mobile.split("").reverse().join(""),
+      id: user.id,
+      username: user.personName,
+      mobile: user.mobile,
     };
 
     // Generate JWT token with 8 hour expiry
