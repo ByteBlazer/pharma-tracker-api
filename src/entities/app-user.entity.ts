@@ -2,7 +2,10 @@ import { Entity, PrimaryColumn, Column } from "typeorm";
 
 @Entity("app_user")
 export class AppUser {
-  @PrimaryColumn({ name: "mobile", type: "varchar", length: 10 })
+  @PrimaryColumn({ name: "id", type: "varchar", length: 50 })
+  id: string;
+
+  @Column({ name: "mobile", type: "varchar", length: 10 })
   mobile: string;
 
   @Column({ name: "person_name", type: "varchar", length: 50 })
