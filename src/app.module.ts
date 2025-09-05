@@ -1,20 +1,19 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { TypeOrmModule } from "@nestjs/typeorm";
 import { JwtModule } from "@nestjs/jwt";
-import { GreetingController } from "./controllers/greeting.controller";
-import { GreetingService } from "./services/greeting.service";
-import { ThrottleGuard } from "./guards/throttle.guard";
-import { AppUser } from "./entities/app-user.entity";
-import { UserRole } from "./entities/user-role.entity";
-import { LocationHeartbeat } from "./entities/location-heartbeat.entity";
-import { AppUserXUserRole } from "./entities/app-user-x-user-role.entity";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { TypeOrmModule } from "@nestjs/typeorm";
 import { AuthController } from "./controllers/auth.controller";
-import { AuthService } from "./services/auth.service";
-import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { GreetingController } from "./controllers/greeting.controller";
 import { LocationController } from "./controllers/location.controller";
+import { AppUserXUserRole } from "./entities/app-user-x-user-role.entity";
+import { AppUser } from "./entities/app-user.entity";
+import { LocationHeartbeat } from "./entities/location-heartbeat.entity";
+import { UserRole } from "./entities/user-role.entity";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { AuthService } from "./services/auth.service";
+import { GreetingService } from "./services/greeting.service";
 import { LocationService } from "./services/location.service";
-import { UserRoleService } from "./services/user-role.service";
 
 @Module({
   imports: [
@@ -22,6 +21,12 @@ import { UserRoleService } from "./services/user-role.service";
       isGlobal: true,
       envFilePath: `env.${process.env.NODE_ENV || "staging"}`,
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 1 * 60 * 1000, // 1 minute in milliseconds
+        limit: 500, // 500 requests per minute
+      },
+    ]),
     TypeOrmModule.forRoot({
       type: "postgres",
       host: process.env.DB_HOST,
@@ -53,12 +58,14 @@ import { UserRoleService } from "./services/user-role.service";
   ],
   controllers: [AuthController, LocationController, GreetingController],
   providers: [
-    ThrottleGuard,
+    {
+      provide: "APP_GUARD",
+      useClass: ThrottlerGuard,
+    },
     AuthService,
     JwtAuthGuard,
     LocationService,
     GreetingService,
-    UserRoleService,
   ],
   exports: [AuthService, JwtAuthGuard],
 })

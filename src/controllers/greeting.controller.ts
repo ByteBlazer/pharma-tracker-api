@@ -1,14 +1,12 @@
-import { Controller, Get, Request } from "@nestjs/common";
-import { GreetingService } from "../services/greeting.service";
-import { UserRoleService } from "../services/user-role.service";
+import { Controller, Get } from "@nestjs/common";
+import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { SkipAuth } from "../decorators/skip-auth.decorator";
+import { GreetingService } from "../services/greeting.service";
+import { JwtPayload } from "../interfaces/jwt-payload.interface";
 
 @Controller("greeting")
 export class GreetingController {
-  constructor(
-    private readonly greetingService: GreetingService,
-    private readonly userRoleService: UserRoleService
-  ) {}
+  constructor(private readonly greetingService: GreetingService) {}
 
   @Get()
   @SkipAuth()
@@ -17,20 +15,7 @@ export class GreetingController {
   }
 
   @Get("authenticated")
-  getAuthenticatedGreeting(@Request() req): string {
-    const username = req.user.username;
-    return this.greetingService.getAuthenticatedGreeting(username);
-  }
-
-  @Get("sensitive")
-  getSensitiveGreeting(@Request() req): string {
-    const username = req.user.username;
-    return `Hello ${username}! This is a sensitive endpoint with strict rate limiting.`;
-  }
-
-  @Get("roles")
-  @SkipAuth()
-  async getRoleNames(): Promise<string[]> {
-    return this.userRoleService.getAllRoleNames();
+  getAuthenticatedGreeting(@LoggedInUser() loggedInUser: JwtPayload): string {
+    return this.greetingService.getAuthenticatedGreeting(loggedInUser);
   }
 }

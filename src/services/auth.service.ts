@@ -9,10 +9,10 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { AuthRequestDto } from "../dto/auth-request.dto";
 import { AuthResponseDto } from "../dto/auth-response.dto";
-import { GlobalConstants } from "../GlobalConstants";
 import { AppUser } from "../entities/app-user.entity";
 import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { GlobalConstants } from "../GlobalConstants";
 import axios from "axios";
 
 @Injectable()
@@ -154,6 +154,8 @@ export class AuthService {
       username: user.personName,
       mobile: user.mobile,
       roles: rolesString,
+      locationHeartBeatFrequencyInSeconds:
+        GlobalConstants.LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS,
     };
 
     // Generate JWT token with 8 hour expiry
