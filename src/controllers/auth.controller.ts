@@ -1,8 +1,8 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
-import { AuthService } from "./auth.service";
-import { SkipAuth } from "./decorators/skip-auth.decorator";
-import { AuthRequestDto } from "./dto/auth-request.dto";
-import { AuthResponseDto } from "./dto/auth-response.dto";
+import { AuthService } from "../services/auth.service";
+import { SkipAuth } from "../decorators/skip-auth.decorator";
+import { AuthRequestDto } from "../dto/auth-request.dto";
+import { AuthResponseDto } from "../dto/auth-response.dto";
 
 @Controller("auth")
 export class AuthController {

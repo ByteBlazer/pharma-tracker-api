@@ -1,8 +1,8 @@
 import { Controller, Get, Request } from "@nestjs/common";
-import { GreetingService } from "./greeting.service";
+import { GreetingService } from "../services/greeting.service";
 import { UserRoleService } from "../services/user-role.service";
-import { SkipAuth } from "../auth/decorators/skip-auth.decorator";
-import { Throttle } from "../common/decorators/throttle.decorator";
+import { SkipAuth } from "../decorators/skip-auth.decorator";
+import { Throttle } from "../decorators/throttle.decorator";
 
 @Controller("greeting")
 export class GreetingController {
