@@ -1,54 +1,81 @@
-import { Injectable, CanActivate, ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { THROTTLE_KEY } from "../decorators/throttle.decorator";
 
-interface ThrottleOptions {
+export interface ThrottleOptions {
   limit: number;
   windowMs: number;
 }
 
 @Injectable()
 export class ThrottleGuard implements CanActivate {
-  private requestCounts = new Map<string, { count: number; resetTime: number }>();
-  private readonly defaultOptions: ThrottleOptions = {
-    limit: 100, // 100 requests per window
-    windowMs: 15 * 60 * 1000, // 15 minutes
-  };
+  private requestCounts = new Map<
+    string,
+    { count: number; resetTime: number }
+  >();
+  private defaultOptions: ThrottleOptions | null = null;
 
   constructor(private reflector: Reflector) {}
 
+  setDefaultOptions(options: ThrottleOptions): void {
+    this.defaultOptions = options;
+  }
+
+  isConfigured(): boolean {
+    return this.defaultOptions !== null;
+  }
+
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const clientIp = this.getClientIp(request);
-    
-    // Check if endpoint has custom throttle options
-    const throttleOptions = this.reflector.get<ThrottleOptions>('throttle', context.getHandler()) || this.defaultOptions;
-    
-    if (this.isThrottled(clientIp, throttleOptions)) {
+
+    // Use user ID if authenticated, otherwise use IP
+    const identifier = request.user?.id || this.getClientIp(request);
+
+    // Get custom decorator options or use default
+    const customThrottle = this.reflector.get<ThrottleOptions>(
+      THROTTLE_KEY,
+      context.getHandler()
+    );
+
+    // If no custom throttle and no default options set, skip throttling
+    if (!customThrottle && !this.defaultOptions) {
+      return true;
+    }
+
+    const throttleOptions = customThrottle || this.defaultOptions!;
+
+    if (this.isThrottled(identifier, throttleOptions)) {
       throw new HttpException(
-        'Too many requests, please try again later.',
+        "Too many requests, please try again later.",
         HttpStatus.TOO_MANY_REQUESTS
       );
     }
 
-    this.incrementRequestCount(clientIp, throttleOptions);
+    this.incrementRequestCount(identifier, throttleOptions);
     return true;
   }
 
   private getClientIp(request: any): string {
     // Try to get real IP from various headers
     return (
-      request.headers['x-forwarded-for']?.split(',')[0] ||
-      request.headers['x-real-ip'] ||
+      request.headers["x-forwarded-for"]?.split(",")[0] ||
+      request.headers["x-real-ip"] ||
       request.connection?.remoteAddress ||
       request.socket?.remoteAddress ||
       request.ip ||
-      'unknown'
+      "unknown"
     );
   }
 
-  private isThrottled(clientIp: string, options: ThrottleOptions): boolean {
+  private isThrottled(identifier: string, options: ThrottleOptions): boolean {
     const now = Date.now();
-    const clientData = this.requestCounts.get(clientIp);
+    const clientData = this.requestCounts.get(identifier);
 
     if (!clientData) {
       return false;
@@ -56,19 +83,22 @@ export class ThrottleGuard implements CanActivate {
 
     // Reset if window has passed
     if (now > clientData.resetTime) {
-      this.requestCounts.delete(clientIp);
+      this.requestCounts.delete(identifier);
       return false;
     }
 
     return clientData.count >= options.limit;
   }
 
-  private incrementRequestCount(clientIp: string, options: ThrottleOptions): void {
+  private incrementRequestCount(
+    identifier: string,
+    options: ThrottleOptions
+  ): void {
     const now = Date.now();
-    const clientData = this.requestCounts.get(clientIp);
+    const clientData = this.requestCounts.get(identifier);
 
     if (!clientData) {
-      this.requestCounts.set(clientIp, {
+      this.requestCounts.set(identifier, {
         count: 1,
         resetTime: now + options.windowMs,
       });
@@ -82,9 +112,9 @@ export class ThrottleGuard implements CanActivate {
 
   private cleanup(): void {
     const now = Date.now();
-    for (const [ip, data] of this.requestCounts.entries()) {
+    for (const [identifier, data] of this.requestCounts.entries()) {
       if (now > data.resetTime) {
-        this.requestCounts.delete(ip);
+        this.requestCounts.delete(identifier);
       }
     }
   }

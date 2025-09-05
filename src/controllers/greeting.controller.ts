@@ -2,7 +2,6 @@ import { Controller, Get, Request } from "@nestjs/common";
 import { GreetingService } from "../services/greeting.service";
 import { UserRoleService } from "../services/user-role.service";
 import { SkipAuth } from "../decorators/skip-auth.decorator";
-import { Throttle } from "../decorators/throttle.decorator";
 
 @Controller("greeting")
 export class GreetingController {
@@ -24,7 +23,6 @@ export class GreetingController {
   }
 
   @Get("sensitive")
-  @Throttle({ limit: 5, windowMs: 60000 }) // 5 requests per minute
   getSensitiveGreeting(@Request() req): string {
     const username = req.user.username;
     return `Hello ${username}! This is a sensitive endpoint with strict rate limiting.`;

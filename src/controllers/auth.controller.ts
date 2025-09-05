@@ -3,6 +3,7 @@ import { AuthService } from "../services/auth.service";
 import { SkipAuth } from "../decorators/skip-auth.decorator";
 import { AuthRequestDto } from "../dto/auth-request.dto";
 import { AuthResponseDto } from "../dto/auth-response.dto";
+import { Throttle } from "../decorators/throttle.decorator";
 
 @Controller("auth")
 export class AuthController {
@@ -11,6 +12,7 @@ export class AuthController {
   @Post("generate-otp")
   @HttpCode(HttpStatus.OK)
   @SkipAuth()
+  @Throttle({ limit: 3, windowMs: 1000 })
   async generateOtp(@Body() authRequestDto: AuthRequestDto) {
     return this.authService.generateOtp(authRequestDto);
   }
@@ -18,6 +20,7 @@ export class AuthController {
   @Post("validate-otp")
   @HttpCode(HttpStatus.OK)
   @SkipAuth()
+  @Throttle({ limit: 3, windowMs: 1000 })
   async validateOtp(
     @Body() authRequestDto: AuthRequestDto
   ): Promise<AuthResponseDto> {

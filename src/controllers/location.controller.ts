@@ -9,7 +9,7 @@ export class LocationController {
   constructor(private readonly locationService: LocationService) {}
 
   @Post("register")
-  @Throttle({ limit: 1, windowMs: 1000 }) // Max 1 call per second
+  @Throttle({ limit: 3, windowMs: 1000 })
   async registerLocation(
     @Body() locationRegisterRequestDto: LocationRegisterRequestDto,
     @Request() req: any
