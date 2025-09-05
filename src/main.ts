@@ -2,7 +2,6 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe } from "@nestjs/common";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
-import { ThrottleGuard, ThrottleOptions } from "./guards/throttle.guard";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -22,26 +21,9 @@ async function bootstrap() {
     })
   );
 
-  // Global throttle guard (rate limiting)
-  const throttleGuard = app.get(ThrottleGuard);
-  // Configure global throttle options
-  const globalThrottleOptions: ThrottleOptions = {
-    limit: 200, // 100 requests per window
-    windowMs: 1 * 60 * 1000, // 1 minute
-  };
-  throttleGuard.setDefaultOptions(globalThrottleOptions);
-
-  // Verify configuration
-  if (!throttleGuard.isConfigured()) {
-    console.warn("⚠️  ThrottleGuard is not properly configured!");
-  }
-
-  app.useGlobalGuards(throttleGuard);
-
+  // Global throttling is configured via APP_GUARD in AppModule
   console.log(
-    `🛡️  Global throttling: ${globalThrottleOptions.limit} requests per ${
-      globalThrottleOptions.windowMs / 1000 / 60
-    } minutes`
+    "🛡️  Global throttling: 500 requests per 1 minute (configured via ThrottlerModule)"
   );
 
   // Global JWT authentication guard

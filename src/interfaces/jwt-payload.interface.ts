@@ -3,4 +3,5 @@ export interface JwtPayload {
   username: string;
   mobile: string;
   roles: string; // Comma-separated string of role names
+  locationHeartBeatFrequencyInSeconds: number;
 }

@@ -2,12 +2,16 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { LocationRegisterRequestDto } from "../dto/location-register-request.dto";
+import { UserLocationResponseDto } from "../dto/user-location-response.dto";
+import { LocationItemDto } from "../dto/location-item.dto";
 import { AppUser } from "../entities/app-user.entity";
 import { LocationHeartbeat } from "../entities/location-heartbeat.entity";
+import { JwtPayload } from "../interfaces/jwt-payload.interface";
 
 @Injectable()
 export class LocationService {
@@ -18,46 +22,22 @@ export class LocationService {
     private appUserRepository: Repository<AppUser>
   ) {}
 
-  async registerLocation(
+  async registerUserLocation(
     locationRegisterRequestDto: LocationRegisterRequestDto,
-    userId: string
+    loggedInUser: JwtPayload
   ) {
     try {
-      // Validate that the user exists
-      const user = await this.appUserRepository.findOne({
-        where: { id: userId },
-      });
-
-      if (!user) {
-        throw new BadRequestException("User not found");
-      }
-
-      if (!user.isActive) {
-        throw new BadRequestException("User account is inactive");
-      }
-
-      // Validate latitude and longitude format
-      const latitude = parseFloat(locationRegisterRequestDto.latitude);
-      const longitude = parseFloat(locationRegisterRequestDto.longitude);
-
-      if (isNaN(latitude) || isNaN(longitude)) {
-        throw new BadRequestException("Invalid latitude or longitude format");
-      }
-
-      if (latitude < -90 || latitude > 90) {
-        throw new BadRequestException("Latitude must be between -90 and 90");
-      }
-
-      if (longitude < -180 || longitude > 180) {
-        throw new BadRequestException("Longitude must be between -180 and 180");
-      }
-
       // Create location heartbeat record
       const locationHeartbeat = this.locationHeartbeatRepository.create({
-        appUserId: userId,
+        appUserId: loggedInUser.id,
         geoLatitude: locationRegisterRequestDto.latitude,
         geoLongitude: locationRegisterRequestDto.longitude,
       });
+
+      // Log user information for audit purposes
+      console.log(
+        `Location registered for user: ${loggedInUser.username} (${loggedInUser.id}) with roles: ${loggedInUser.roles}`
+      );
 
       const savedLocation = await this.locationHeartbeatRepository.save(
         locationHeartbeat
@@ -75,6 +55,98 @@ export class LocationService {
 
       console.error("Error registering location:", error);
       throw new InternalServerErrorException("Failed to register location");
+    }
+  }
+
+  async getUserLocations(
+    userId: string,
+    start: string | undefined,
+    loggedInUser: JwtPayload
+  ): Promise<UserLocationResponseDto> {
+    try {
+      // Check if the target user exists
+      const targetUser = await this.appUserRepository.findOne({
+        where: { id: userId },
+      });
+
+      if (!targetUser) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+
+      // Calculate the start time
+      let startTime: Date;
+      if (start) {
+        // Validate that start is a valid number string
+        if (!/^\d+$/.test(start)) {
+          throw new BadRequestException(
+            "start must be a valid epoch timestamp (numbers only)"
+          );
+        }
+
+        // Convert to number and validate range
+        const startTimestamp = parseInt(start, 10);
+        const minTimestamp = new Date("2000-01-01").getTime();
+        const maxTimestamp = new Date("2100-01-01").getTime();
+
+        if (startTimestamp < minTimestamp || startTimestamp > maxTimestamp) {
+          throw new BadRequestException(
+            "start must be a valid epoch timestamp (between year 2000 and 2100)"
+          );
+        }
+
+        // Use provided epoch time
+        startTime = new Date(startTimestamp);
+
+        // Validate that the epoch time is valid
+        if (isNaN(startTime.getTime())) {
+          throw new BadRequestException("Invalid start time format");
+        }
+      } else {
+        // Default to last 48 hours
+        startTime = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      }
+
+      // Fetch locations from the database
+      const locations = await this.locationHeartbeatRepository
+        .createQueryBuilder("location")
+        .where("location.appUserId = :userId", { userId })
+        .andWhere("location.receivedAt >= :startTime", { startTime })
+        .orderBy("location.receivedAt", "DESC")
+        .getMany();
+
+      // Transform to response format
+      const locationItems: LocationItemDto[] = locations.map((location) => ({
+        id: location.id,
+        latitude: location.geoLatitude,
+        longitude: location.geoLongitude,
+        receivedAt: location.receivedAt,
+      }));
+
+      // Log user information for audit purposes
+      console.log(
+        `Location query by ${loggedInUser.username} (${loggedInUser.id}) for user ${userId} - Found ${locationItems.length} locations`
+      );
+
+      return {
+        success: true,
+        message: `Found ${locationItems.length} location(s) for user ${targetUser.personName}`,
+        locations: locationItems,
+        totalCount: locationItems.length,
+        targetUser: {
+          id: targetUser.id,
+          name: targetUser.personName,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+
+      console.error("Error fetching user locations:", error);
+      throw new InternalServerErrorException("Failed to fetch user locations");
     }
   }
 }
