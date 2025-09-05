@@ -7,10 +7,12 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { AuthRequestDto } from "./dto/auth-request.dto";
-import { AuthResponseDto } from "./dto/auth-response.dto";
-import { GlobalConstants } from "src/GlobalConstants";
+import { AuthRequestDto } from "../dto/auth-request.dto";
+import { AuthResponseDto } from "../dto/auth-response.dto";
+import { GlobalConstants } from "../GlobalConstants";
 import { AppUser } from "../entities/app-user.entity";
+import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
+import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import axios from "axios";
 
 @Injectable()
@@ -18,7 +20,9 @@ export class AuthService {
   constructor(
     private jwtService: JwtService,
     @InjectRepository(AppUser)
-    private appUserRepository: Repository<AppUser>
+    private appUserRepository: Repository<AppUser>,
+    @InjectRepository(AppUserXUserRole)
+    private appUserXUserRoleRepository: Repository<AppUserXUserRole>
   ) {}
 
   async generateOtp(authRequestDto: AuthRequestDto) {
@@ -81,7 +85,6 @@ export class AuthService {
         `Windows environment: Skipping OTP validation for mobile ${authRequestDto.mobile}`
       );
       skip = true;
-      return;
     }
 
     const magicNumber = "112233";
@@ -134,11 +137,23 @@ export class AuthService {
       where: { mobile: authRequestDto.mobile },
     });
 
+    // Fetch user roles
+    const userRoles = await this.appUserXUserRoleRepository.find({
+      where: { appUserId: user.id },
+      relations: ["userRole"],
+    });
+
+    // Create comma-separated string of role names
+    const rolesString = userRoles
+      .map((userRole) => userRole.roleName)
+      .join(",");
+
     // Create JWT payload
-    const payload = {
+    const payload: JwtPayload = {
       id: user.id,
       username: user.personName,
       mobile: user.mobile,
+      roles: rolesString,
     };
 
     // Generate JWT token with 8 hour expiry

@@ -7,13 +7,11 @@ import {
 import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
 import { SKIP_AUTH_KEY } from "../decorators/skip-auth.decorator";
+import { JwtPayload } from "../interfaces/jwt-payload.interface";
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(
-    private jwtService: JwtService,
-    private reflector: Reflector,
-  ) {}
+  constructor(private jwtService: JwtService, private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     // Check if the endpoint has SkipAuth decorator
@@ -36,7 +34,7 @@ export class JwtAuthGuard implements CanActivate {
     const token = authHeader.replace("Bearer ", "");
 
     try {
-      const payload = this.jwtService.verify(token);
+      const payload = this.jwtService.verify(token) as JwtPayload;
       request.user = payload;
       return true;
     } catch (error) {

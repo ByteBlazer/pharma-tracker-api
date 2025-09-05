@@ -1,8 +1,8 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe } from "@nestjs/common";
-import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
-import { ThrottleGuard } from "./common/guards/throttle.guard";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { ThrottleGuard } from "./guards/throttle.guard";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
