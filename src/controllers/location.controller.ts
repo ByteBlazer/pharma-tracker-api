@@ -23,7 +23,6 @@ export class LocationController {
   constructor(private readonly locationService: LocationService) {}
 
   @Get("user/:userId")
-  @UseGuards(RoleGuard)
   @RequireRoles(UserRole.WEB_ACCESS, UserRole.APP_ADMIN)
   async getUserLocations(
     @Param("userId") userId: string,
@@ -34,7 +33,6 @@ export class LocationController {
   }
 
   @Post("register")
-  @UseGuards(RoleGuard)
   @RequireRoles(UserRole.APP_ADMIN, UserRole.APP_TRIP_DRIVER)
   @Throttle({ default: { limit: 200, ttl: 1 * 60 * 1000 } })
   async registerUserLocation(

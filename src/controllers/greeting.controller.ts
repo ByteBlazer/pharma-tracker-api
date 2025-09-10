@@ -3,6 +3,7 @@ import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { SkipAuth } from "../decorators/skip-auth.decorator";
 import { GreetingService } from "../services/greeting.service";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { RequireRoles } from "src/decorators/require-roles.decorator";
 
 @Controller("greeting")
 export class GreetingController {
@@ -15,6 +16,7 @@ export class GreetingController {
   }
 
   @Get("authenticated")
+  @RequireRoles()
   getAuthenticatedGreeting(@LoggedInUser() loggedInUser: JwtPayload): string {
     return this.greetingService.getAuthenticatedGreeting(loggedInUser);
   }
