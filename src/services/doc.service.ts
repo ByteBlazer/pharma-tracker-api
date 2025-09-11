@@ -203,7 +203,11 @@ export class DocService {
     };
   }
 
-  async createMockData(useOneRealPhoneNumber?: string) {
+  async createMockData(
+    useOneRealPhoneNumber?: string,
+    useOneRealRouteId?: string,
+    useOneRealLotNbr?: string
+  ) {
     const mockDocs = [];
 
     // Sample data arrays for random selection
@@ -215,8 +219,28 @@ export class DocService {
 
     // Generate 10 mock documents with 50% having blank status
     for (let i = 0; i < 10; i++) {
-      const randomCustomer =
-        customers[Math.floor(Math.random() * customers.length)];
+      let selectedCustomer;
+
+      // If real phone number is provided, use first customer (ABC Pharmaceuticals) for first document
+      if (i === 0 && useOneRealPhoneNumber) {
+        selectedCustomer = { ...customers[0] }; // ABC Pharmaceuticals (MOCKCUST001) - create a copy
+        // Override routeId and lotNbr if provided
+        if (useOneRealRouteId) {
+          selectedCustomer.route = useOneRealRouteId;
+        }
+        if (useOneRealLotNbr) {
+          // We'll handle lotNbr in the mockDoc creation since it's not part of customer data
+        }
+      } else {
+        // For all other documents, select random customer
+        selectedCustomer =
+          customers[Math.floor(Math.random() * customers.length)];
+      }
+      // Use real phone number for first document if provided, otherwise use customer's phone
+      const phoneNumber =
+        i === 0 && useOneRealPhoneNumber
+          ? useOneRealPhoneNumber
+          : selectedCustomer.phone;
 
       // Generate random 10-character numeric docId
       const generateDocId = () => {
@@ -237,26 +261,23 @@ export class DocService {
       // Generate docAmount (between 100.00 and 10000.00, excluding both)
       const docAmount = parseFloat((Math.random() * 9900 + 100.01).toFixed(2));
 
-      // Use real phone number for first document if provided, otherwise use customer's phone
-      const phoneNumber =
-        i === 0 && useOneRealPhoneNumber
-          ? useOneRealPhoneNumber
-          : randomCustomer.phone;
-
       const mockDoc = {
         docId: generateDocId(),
         status: "",
-        routeId: randomCustomer.route,
-        lotNbr: lotNumbers[Math.floor(Math.random() * lotNumbers.length)], // Can be blank
+        routeId: selectedCustomer.route,
+        lotNbr:
+          i === 0 && useOneRealPhoneNumber && useOneRealLotNbr
+            ? useOneRealLotNbr
+            : lotNumbers[Math.floor(Math.random() * lotNumbers.length)], // Can be blank
         whseLocationName:
           warehouseLocations[
             Math.floor(Math.random() * warehouseLocations.length)
           ],
-        customerId: randomCustomer.id,
-        customerName: randomCustomer.name,
-        customerAddress: randomCustomer.address,
-        customerCity: randomCustomer.city,
-        customerPinCode: randomCustomer.pincode,
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        customerAddress: selectedCustomer.address,
+        customerCity: selectedCustomer.city,
+        customerPinCode: selectedCustomer.pincode,
         customerPhone: phoneNumber,
         docDate: docDate,
         docAmount: docAmount,

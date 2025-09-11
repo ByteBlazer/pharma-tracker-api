@@ -64,6 +64,8 @@ export class DocController {
   @Throttle({ default: { limit: 5, ttl: 1 * 60 * 1000 } })
   async createMockData(
     @Query("useOneRealPhoneNumber") useOneRealPhoneNumber: string,
+    @Query("useOneRealRouteId") useOneRealRouteId: string,
+    @Query("useOneRealLotNbr") useOneRealLotNbr: string,
     @Res() res: Response
   ): Promise<void> {
     // Validate phone number if provided
@@ -75,7 +77,29 @@ export class DocController {
       }
     }
 
-    const result = await this.docService.createMockData(useOneRealPhoneNumber);
+    // Validate route ID if provided
+    if (
+      useOneRealRouteId !== undefined &&
+      (useOneRealRouteId === null || useOneRealRouteId.trim() === "")
+    ) {
+      throw new BadRequestException(
+        "useOneRealRouteId cannot be null or blank"
+      );
+    }
+
+    // Validate lot number if provided
+    if (
+      useOneRealLotNbr !== undefined &&
+      (useOneRealLotNbr === null || useOneRealLotNbr.trim() === "")
+    ) {
+      throw new BadRequestException("useOneRealLotNbr cannot be null or blank");
+    }
+
+    const result = await this.docService.createMockData(
+      useOneRealPhoneNumber,
+      useOneRealRouteId,
+      useOneRealLotNbr
+    );
 
     // Set PDF headers
     res.set({
