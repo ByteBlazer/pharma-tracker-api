@@ -7,18 +7,22 @@ import { AuthController } from "./controllers/auth.controller";
 import { DocController } from "./controllers/doc.controller";
 import { GreetingController } from "./controllers/greeting.controller";
 import { LocationController } from "./controllers/location.controller";
+import { SettingController } from "./controllers/setting.controller";
 import { AppUserXUserRole } from "./entities/app-user-x-user-role.entity";
 import { AppUser } from "./entities/app-user.entity";
 import { BaseLocation } from "./entities/base-location.entity";
 import { Customer } from "./entities/customer.entity";
 import { Doc } from "./entities/doc.entity";
 import { LocationHeartbeat } from "./entities/location-heartbeat.entity";
+import { Setting } from "./entities/setting.entity";
 import { UserRole } from "./entities/user-role.entity";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { AuthService } from "./services/auth.service";
 import { DocService } from "./services/doc.service";
 import { GreetingService } from "./services/greeting.service";
 import { LocationService } from "./services/location.service";
+import { SettingService } from "./services/setting.service";
+import { SettingsCacheService } from "./services/settings-cache.service";
 import { AppService } from "./services/app.service";
 
 @Module({
@@ -48,6 +52,7 @@ import { AppService } from "./services/app.service";
         AppUserXUserRole,
         Customer,
         Doc,
+        Setting,
       ],
       autoLoadEntities: false,
       synchronize: false,
@@ -61,6 +66,7 @@ import { AppService } from "./services/app.service";
       AppUserXUserRole,
       Customer,
       Doc,
+      Setting,
     ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -78,6 +84,7 @@ import { AppService } from "./services/app.service";
     DocController,
     LocationController,
     GreetingController,
+    SettingController,
   ],
   providers: [
     {
@@ -89,6 +96,8 @@ import { AppService } from "./services/app.service";
     JwtAuthGuard,
     LocationService,
     GreetingService,
+    SettingService,
+    SettingsCacheService,
     AppService,
   ],
   exports: [AuthService, JwtAuthGuard],

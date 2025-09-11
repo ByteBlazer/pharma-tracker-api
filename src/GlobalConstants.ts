@@ -6,8 +6,8 @@ export class GlobalConstants {
   static readonly SEND_SMS_URL_TEMPLATE =
     "https://2factor.in/API/R1/?module=TRANS_SMS&apikey={apikey}&to={recipientMobileNumber}&from=BTBLZR&templatename={smsTemplateName}";
   static readonly SMS_OTP_TEMPLATE = "PHARMA_OTP_V6";
-  static readonly LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS = 60;
-  static readonly SCAN_ROUTE_TIMEOUT_MINUTES = 1;
+  static readonly FALLBACK_LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS = 60;
+  static readonly FALLBACK_SCAN_ROUTE_TIMEOUT_SECONDS = 10;
 
   static readonly MOCK_CUSTOMER_PREFIX = "MOCKCUST";
 

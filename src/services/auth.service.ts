@@ -13,6 +13,7 @@ import { AppUser } from "../entities/app-user.entity";
 import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { GlobalConstants } from "../GlobalConstants";
+import { SettingsCacheService } from "./settings-cache.service";
 import axios from "axios";
 
 @Injectable()
@@ -22,7 +23,8 @@ export class AuthService {
     @InjectRepository(AppUser)
     private appUserRepository: Repository<AppUser>,
     @InjectRepository(AppUserXUserRole)
-    private appUserXUserRoleRepository: Repository<AppUserXUserRole>
+    private appUserXUserRoleRepository: Repository<AppUserXUserRole>,
+    private readonly settingsCacheService: SettingsCacheService
   ) {}
 
   async generateOtp(authRequestDto: AuthRequestDto) {
@@ -149,14 +151,19 @@ export class AuthService {
       .map((userRole) => userRole.roleName)
       .join(",");
 
+    // Get location heartbeat frequency from cache
+    const locationHeartBeatFrequencyInMinutes =
+      this.settingsCacheService.getMinsBetweenLocationHeartbeats();
+    const locationHeartBeatFrequencyInSeconds =
+      locationHeartBeatFrequencyInMinutes * 60; // Convert minutes to seconds
+
     // Create JWT payload
     const payload: JwtPayload = {
       id: user.id,
       username: user.personName,
       mobile: user.mobile,
       roles: rolesString,
-      locationHeartBeatFrequencyInSeconds:
-        GlobalConstants.LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS,
+      locationHeartBeatFrequencyInSeconds: locationHeartBeatFrequencyInSeconds,
       baseLocationId: user.baseLocationId,
       baseLocationName: user.baseLocation?.name || "",
     };

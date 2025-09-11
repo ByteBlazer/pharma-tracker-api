@@ -13,6 +13,7 @@ import { JwtPayload } from "src/interfaces/jwt-payload.interface";
 import { ScannedUserSummary } from "src/interfaces/scanned-user-summary.interface";
 import { RouteSummary } from "src/interfaces/route-summary.interface";
 import { DispatchQueue } from "src/interfaces/dispatch-queue.interface";
+import { SettingsCacheService } from "./settings-cache.service";
 
 @Injectable()
 export class DocService {
@@ -22,6 +23,7 @@ export class DocService {
     private readonly customerRepository: Repository<Customer>,
     @InjectRepository(Doc)
     private readonly docRepository: Repository<Doc>,
+    private readonly settingsCacheService: SettingsCacheService,
     private dataSource: DataSource
   ) {}
 
@@ -133,8 +135,11 @@ export class DocService {
     }
 
     // Check user's previous scan within configured timeout (only for new documents)
-    const timeoutMinutes = GlobalConstants.SCAN_ROUTE_TIMEOUT_MINUTES;
-    const timeoutAgo = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+    // Get cooling off period from cache
+    const timeoutSeconds =
+      this.settingsCacheService.getCoolOffSecondsBetweenDiffRouteScans();
+
+    const timeoutAgo = new Date(Date.now() - timeoutSeconds * 1000);
     const lastScan = await this.docRepository.findOne({
       where: {
         lastScannedBy: loggedInUser.id,
@@ -146,13 +151,15 @@ export class DocService {
     if (lastScan) {
       if (lastScan.route !== matchedDoc.routeId) {
         const timeDiff = Math.floor(
-          (Date.now() - lastScan.lastUpdatedAt.getTime()) / (1000 * 60)
+          (Date.now() - lastScan.lastUpdatedAt.getTime()) / 1000
         );
-        const remainingMinutes = timeoutMinutes - timeDiff;
+        const remainingSeconds = timeoutSeconds - timeDiff;
 
         return {
           success: false,
-          message: `Route conflict detected. Previous scan route: ${lastScan.route}. Current scan route: ${matchedDoc.routeId}. Please wait for ${remainingMinutes} minute(s) cooling off period and then reattempt scan.`,
+          message: `Route conflict detected. Previous scan route: ${lastScan.route}. 
+          Current scan route: ${matchedDoc.routeId}. 
+          Please wait for ${remainingSeconds} second(s) cooling off period and then reattempt scan.`,
           docId: docId,
           statusCode: 400, // Bad Request
         };
