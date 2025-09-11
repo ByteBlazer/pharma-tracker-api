@@ -7,6 +7,8 @@ import {
   Post,
   Res,
   HttpStatus,
+  Query,
+  BadRequestException,
 } from "@nestjs/common";
 import { RequireRoles } from "src/decorators/require-roles.decorator";
 import { UserRole } from "src/enums/user-role.enum";
@@ -34,7 +36,7 @@ export class DocController {
     try {
       const result = await this.docService.scanAndAdd(docId, loggedInUser.id);
 
-      res.status(HttpStatus.OK).json({
+      res.status(result.statusCode).json({
         success: result.success,
         message: result.message,
         docId: result.docId,
@@ -60,8 +62,20 @@ export class DocController {
   @Get("create-mock-docs")
   @RequireRoles()
   @Throttle({ default: { limit: 5, ttl: 1 * 60 * 1000 } })
-  async createMockData(@Res() res: Response): Promise<void> {
-    const result = await this.docService.createMockData();
+  async createMockData(
+    @Query("useOneRealPhoneNumber") useOneRealPhoneNumber: string,
+    @Res() res: Response
+  ): Promise<void> {
+    // Validate phone number if provided
+    if (useOneRealPhoneNumber) {
+      if (!/^\d{10}$/.test(useOneRealPhoneNumber)) {
+        throw new BadRequestException(
+          "useOneRealPhoneNumber must be exactly 10 digits"
+        );
+      }
+    }
+
+    const result = await this.docService.createMockData(useOneRealPhoneNumber);
 
     // Set PDF headers
     res.set({

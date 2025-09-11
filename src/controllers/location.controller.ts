@@ -1,22 +1,13 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  UseGuards,
-  Param,
-} from "@nestjs/common";
-import { LocationRegisterRequestDto } from "../dto/location-register-request.dto";
-import { LocationRegisterResponseDto } from "../dto/location-register-response.dto";
-import { UserLocationResponseDto } from "../dto/user-location-response.dto";
-import { LocationService } from "../services/location.service";
+import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { RequireRoles } from "../decorators/require-roles.decorator";
-import { RoleGuard } from "../guards/role.guard";
-import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { LocationRegisterRequestDto } from "../dto/location-register-request.dto";
+import { LocationRegisterResponseDto } from "../dto/location-register-response.dto";
+import { UserLocationResponseDto } from "../dto/user-location-response.dto";
 import { UserRole } from "../enums/user-role.enum";
+import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { LocationService } from "../services/location.service";
 
 @Controller("location")
 export class LocationController {

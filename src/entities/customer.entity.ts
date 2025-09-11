@@ -17,6 +17,9 @@ export class Customer {
   @Column({ name: "pincode", type: "varchar", length: 20, nullable: true })
   pincode: string;
 
+  @Column({ name: "phone", type: "varchar", length: 20, nullable: true })
+  phone: string;
+
   @Column({ name: "geo_latitude", type: "varchar", length: 20, nullable: true })
   geoLatitude: string;
 

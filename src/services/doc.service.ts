@@ -1,14 +1,14 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
+import * as JsBarcode from "jsbarcode";
+import * as PDFDocument from "pdfkit";
+import { DocStatus } from "src/enums/doc-status.enum";
 import { Repository } from "typeorm";
-import { JwtPayload } from "../interfaces/jwt-payload.interface";
-import { AppService } from "./app.service";
+
 import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
-import { GlobalConstants } from "../constants/global.constants";
-import * as PDFDocument from "pdfkit";
-import * as JsBarcode from "jsbarcode";
-import { DocStatus } from "src/enums/doc-status.enum";
+import { AppService } from "./app.service";
+import { GlobalConstants } from "src/GlobalConstants";
 
 @Injectable()
 export class DocService {
@@ -23,47 +23,114 @@ export class DocService {
   async scanAndAdd(
     docId: string,
     lastScannedBy: string
-  ): Promise<{ success: boolean; message: string; docId: string }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    docId: string;
+    statusCode: number;
+  }> {
+    //TODO: Make ERP call and store retrieved doc details and status from ERP.
+    let erpMatchFound = false;
+    let docFromErp = null;
+
     // Check if document already exists in database
     const existingDoc = await this.docRepository.findOne({
       where: { id: docId },
     });
     if (existingDoc) {
-      // Update existing document
-      existingDoc.lastScannedBy = lastScannedBy;
-      existingDoc.lastUpdatedAt = new Date();
-      await this.docRepository.save(existingDoc);
+      //TODO: If existing doc and existing doc status is not delivered, and ERP status is delivered, then flip our DB status also to delivered.
 
-      return {
-        success: true,
-        message: "Document updated successfully",
-        docId: docId,
-      };
+      // Update document for all cases that allow scanning
+      if (
+        existingDoc.status !== DocStatus.DELIVERED &&
+        existingDoc.status !== DocStatus.TRIP_SCHEDULED &&
+        existingDoc.status !== DocStatus.ON_TRIP
+      ) {
+        existingDoc.lastScannedBy = lastScannedBy;
+        existingDoc.lastUpdatedAt = new Date();
+        await this.docRepository.save(existingDoc);
+      }
+
+      // Handle different document statuses
+      switch (existingDoc.status) {
+        case DocStatus.DELIVERED:
+          return {
+            success: false,
+            message: "Doc ID is already delivered and cannot be scanned again",
+            docId: docId,
+            statusCode: 400, // Bad Request
+          };
+
+        case DocStatus.TRIP_SCHEDULED:
+          return {
+            success: false,
+            message: "Doc ID is already scheduled for a trip",
+            docId: docId,
+            statusCode: 409, // Conflict
+          };
+
+        case DocStatus.ON_TRIP:
+          return {
+            success: false,
+            message: "Doc ID is already out on a trip",
+            docId: docId,
+            statusCode: 409, // Conflict
+          };
+
+        case DocStatus.READY_FOR_DISPATCH:
+          return {
+            success: true,
+            message: "Doc ID re-scanned. Was already in route queue",
+            docId: docId,
+            statusCode: 409, // Conflict
+          };
+
+        case DocStatus.UNDELIVERED:
+          return {
+            success: true,
+            message:
+              "Doc ID scanned successfully (previous delivery attempt failed)",
+            docId: docId,
+            statusCode: 200, // OK
+          };
+
+        case DocStatus.AT_TRANSIT_HUB:
+          return {
+            success: true,
+            message: "Doc ID scanned successfully from transit hub",
+            docId: docId,
+            statusCode: 200, // OK
+          };
+      }
     }
 
-    // Get all mock docs from AppService
-    const mockDocs = this.appService.getMockDocs();
+    let matchedDoc = null;
+    if (erpMatchFound) {
+      matchedDoc = docFromErp;
+    } else {
+      matchedDoc = this.appService
+        .getMockDocs()
+        .find((doc) => doc.docId === docId);
+    }
 
-    // Find the document with matching docId
-    const foundDoc = mockDocs.find((doc) => doc.docId === docId);
-
-    if (!foundDoc) {
+    if (!matchedDoc) {
       throw new NotFoundException(`No Document with ID ${docId} found in ERP`);
     }
 
     // Check if customer exists, create or update it
     let customer = await this.customerRepository.findOne({
-      where: { id: foundDoc.customerId },
+      where: { id: matchedDoc.customerId },
     });
 
     if (!customer) {
       // Create new customer record
       customer = this.customerRepository.create({
-        id: foundDoc.customerId,
-        firmName: foundDoc.customerName,
-        address: foundDoc.customerAddress,
-        city: foundDoc.customerCity,
-        pincode: foundDoc.customerPinCode,
+        id: matchedDoc.customerId,
+        firmName: matchedDoc.customerName,
+        address: matchedDoc.customerAddress,
+        city: matchedDoc.customerCity,
+        pincode: matchedDoc.customerPinCode,
+        phone: matchedDoc.customerPhone,
         geoLatitude: null, // No geo data for now
         geoLongitude: null, // No geo data for now
         createdAt: new Date(),
@@ -71,10 +138,11 @@ export class DocService {
       });
     } else {
       // Update existing customer record with latest details
-      customer.firmName = foundDoc.customerName;
-      customer.address = foundDoc.customerAddress;
-      customer.city = foundDoc.customerCity;
-      customer.pincode = foundDoc.customerPinCode;
+      customer.firmName = matchedDoc.customerName;
+      customer.address = matchedDoc.customerAddress;
+      customer.city = matchedDoc.customerCity;
+      customer.pincode = matchedDoc.customerPinCode;
+      customer.phone = matchedDoc.customerPhone;
       customer.lastUpdatedAt = new Date();
     }
 
@@ -82,16 +150,16 @@ export class DocService {
 
     // Create new document record
     const newDoc = this.docRepository.create({
-      id: foundDoc.docId,
+      id: matchedDoc.docId,
       status: DocStatus.READY_FOR_DISPATCH,
       lastScannedBy: lastScannedBy,
-      originWarehouse: foundDoc.whseLocationName,
+      originWarehouse: matchedDoc.whseLocationName,
       tripId: null, // No trip_id for now
-      docDate: foundDoc.docDate,
-      docAmount: foundDoc.docAmount,
-      route: foundDoc.routeId,
-      lot: foundDoc.lotNbr || null,
-      customerId: foundDoc.customerId,
+      docDate: matchedDoc.docDate,
+      docAmount: matchedDoc.docAmount,
+      route: matchedDoc.routeId,
+      lot: matchedDoc.lotNbr || null,
+      customerId: matchedDoc.customerId,
       createdAt: new Date(),
       lastUpdatedAt: new Date(),
     });
@@ -102,6 +170,7 @@ export class DocService {
       success: true,
       message: "Document added successfully",
       docId: docId,
+      statusCode: 201, // Created
     };
   }
 
@@ -134,7 +203,7 @@ export class DocService {
     };
   }
 
-  async createMockData() {
+  async createMockData(useOneRealPhoneNumber?: string) {
     const mockDocs = [];
 
     // Sample data arrays for random selection
@@ -168,6 +237,12 @@ export class DocService {
       // Generate docAmount (between 100.00 and 10000.00, excluding both)
       const docAmount = parseFloat((Math.random() * 9900 + 100.01).toFixed(2));
 
+      // Use real phone number for first document if provided, otherwise use customer's phone
+      const phoneNumber =
+        i === 0 && useOneRealPhoneNumber
+          ? useOneRealPhoneNumber
+          : randomCustomer.phone;
+
       const mockDoc = {
         docId: generateDocId(),
         status: "",
@@ -182,6 +257,7 @@ export class DocService {
         customerAddress: randomCustomer.address,
         customerCity: randomCustomer.city,
         customerPinCode: randomCustomer.pincode,
+        customerPhone: phoneNumber,
         docDate: docDate,
         docAmount: docAmount,
         invoiceDate: new Date(
@@ -229,6 +305,7 @@ export class DocService {
             .text(`Document ${index + 1}:`, { underline: true })
             .text(`Doc ID: ${docData.docId}`)
             .text(`Customer: ${docData.customerName}`)
+            .text(`Phone: ${docData.customerPhone || "Not available"}`)
             .text(`Route: ${docData.routeId}`)
             .text(`Lot Number: ${docData.lotNbr || "Not assigned"}`)
             .text(`Doc Date: ${docData.docDate.toLocaleDateString()}`)
