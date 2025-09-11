@@ -135,6 +135,7 @@ export class AuthService {
 
     const user = await this.appUserRepository.findOne({
       where: { mobile: authRequestDto.mobile },
+      relations: ["baseLocation"],
     });
 
     // Fetch user roles
@@ -156,6 +157,8 @@ export class AuthService {
       roles: rolesString,
       locationHeartBeatFrequencyInSeconds:
         GlobalConstants.LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS,
+      baseLocationId: user.baseLocationId,
+      baseLocationName: user.baseLocation?.name || "",
     };
 
     // Generate JWT token with 8 hour expiry

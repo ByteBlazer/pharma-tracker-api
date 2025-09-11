@@ -59,6 +59,56 @@ export class DocController {
     }
   }
 
+  @Get("dispatch-queue")
+  @RequireRoles(UserRole.APP_ADMIN, UserRole.APP_TRIP_CREATOR)
+  async getDispatchQueueForUser(
+    @LoggedInUser() loggedInUser: JwtPayload,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      const result = await this.docService.getDispatchQueueForUser(
+        loggedInUser
+      );
+      res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        dispatchQueueList: result.dispatchQueueList,
+        totalDocs: result.totalDocs,
+      });
+    } catch (error) {
+      console.log(error);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Failed to fetch dispatch queue",
+        error: error.message,
+      });
+    }
+  }
+
+  @Post("undo-all-scans")
+  @RequireRoles(UserRole.APP_ADMIN, UserRole.APP_SCANNER)
+  async undoAllScans(
+    @LoggedInUser() loggedInUser: JwtPayload,
+    @Res() res: Response
+  ): Promise<void> {
+    //TODO: For ones at transit hub, deleting the doc will make us lose all historical refs. This needs to be handled.
+    try {
+      const result = await this.docService.undoAllScans(loggedInUser);
+      res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        deletedDocs: result.deletedDocs,
+      });
+    } catch (error) {
+      console.log(error);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Failed to undo scans",
+        error: error.message,
+      });
+    }
+  }
+
   @Get("create-mock-docs")
   @RequireRoles()
   @Throttle({ default: { limit: 5, ttl: 1 * 60 * 1000 } })

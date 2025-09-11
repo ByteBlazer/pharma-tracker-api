@@ -3,13 +3,16 @@ import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { DataSource, LoggerOptions, MoreThan, Repository } from "typeorm";
+import { DataSource, LoggerOptions, MoreThan, Repository, In } from "typeorm";
 
 import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
 import { AppService } from "./app.service";
 import { GlobalConstants } from "src/GlobalConstants";
 import { JwtPayload } from "src/interfaces/jwt-payload.interface";
+import { ScannedUserSummary } from "src/interfaces/scanned-user-summary.interface";
+import { RouteSummary } from "src/interfaces/route-summary.interface";
+import { DispatchQueue } from "src/interfaces/dispatch-queue.interface";
 
 @Injectable()
 export class DocService {
@@ -85,15 +88,7 @@ export class DocService {
         case DocStatus.READY_FOR_DISPATCH:
           return {
             success: true,
-            message: "Doc ID re-scanned. Was already in route queue",
-            docId: docId,
-            statusCode: 409, // Conflict
-          };
-
-        case DocStatus.READY_FOR_DISPATCH_FROM_HUB:
-          return {
-            success: true,
-            message: "Doc ID re-scanned. Was already in route queue",
+            message: "Doc ID re-scanned. Was already in dispatch queue",
             docId: docId,
             statusCode: 409, // Conflict
           };
@@ -102,7 +97,7 @@ export class DocService {
           return {
             success: true,
             message:
-              "Scanned and added to Route Queue (previous delivery attempt failed)",
+              "Scanned and added to Dispatch Queue (previous delivery attempt failed)",
             docId: docId,
             statusCode: 200, // OK
           };
@@ -110,7 +105,7 @@ export class DocService {
         case DocStatus.AT_TRANSIT_HUB:
           return {
             success: true,
-            message: "Scanned from transit hub and added to Route Queue",
+            message: "Scanned from transit hub and added to Dispatch Queue",
             docId: docId,
             statusCode: 200, // OK
           };
@@ -196,10 +191,7 @@ export class DocService {
     // Create new document record
     const newDoc = this.docRepository.create({
       id: matchedDoc.docId,
-      status:
-        existingDoc && existingDoc.status == DocStatus.AT_TRANSIT_HUB
-          ? DocStatus.READY_FOR_DISPATCH_FROM_HUB
-          : DocStatus.READY_FOR_DISPATCH,
+      status: DocStatus.READY_FOR_DISPATCH,
       lastScannedBy: loggedInUser.id,
       originWarehouse: matchedDoc.whseLocationName,
       tripId: null, // No trip_id for now
@@ -231,10 +223,158 @@ export class DocService {
 
     return {
       success: true,
-      message: "Scanned and added to Route Queue",
+      message: "Scanned and added to Dispatch Queue",
       docId: docId,
       statusCode: 200, // Created
     };
+  }
+
+  async getDispatchQueueForUser(loggedInUser: JwtPayload) {
+    // Find all users with the same base location
+    const usersInSameLocation = await this.dataSource
+      .getRepository("AppUser")
+      .find({
+        where: { baseLocationId: loggedInUser.baseLocationId },
+        select: ["id", "personName"],
+      });
+
+    const userIds = usersInSameLocation.map((user) => user.id);
+
+    // Create a map of user ID to user name for quick lookup
+    const userIdToNameMap = {};
+    usersInSameLocation.forEach((user) => {
+      userIdToNameMap[user.id] = user.personName;
+    });
+
+    // Get all documents in READY_FOR_DISPATCH status
+    // created by users in the same base location
+    const dispatchQueueDocs = await this.docRepository.find({
+      where: [
+        {
+          status: DocStatus.READY_FOR_DISPATCH,
+          lastScannedBy: In(userIds),
+        },
+      ],
+      order: { createdAt: "DESC" },
+    });
+
+    // Group documents by route and then by lastScannedBy
+    const routeMap = new Map<string, Map<string, ScannedUserSummary>>();
+
+    for (const doc of dispatchQueueDocs) {
+      const route = doc.route;
+      const scannedByUserId = doc.lastScannedBy;
+      const scannedByName = userIdToNameMap[scannedByUserId];
+
+      if (!routeMap.has(route)) {
+        routeMap.set(route, new Map());
+      }
+
+      const userMap = routeMap.get(route);
+      if (!userMap.has(scannedByName)) {
+        const userSummary: ScannedUserSummary = {
+          scannedByUserId: scannedByUserId,
+          scannedByName: scannedByName,
+          scannedFromLocation: loggedInUser.baseLocationName,
+          count: 0,
+        };
+        userMap.set(scannedByName, userSummary);
+      }
+
+      userMap.get(scannedByName).count++;
+    }
+
+    // Convert Map structure to DispatchQueueList format
+    const routeSummaryList: RouteSummary[] = [];
+    for (const [route, userMap] of routeMap) {
+      const userSummaryList: ScannedUserSummary[] = Array.from(
+        userMap.values()
+      );
+      routeSummaryList.push({
+        route: route,
+        userSummaryList: userSummaryList,
+      });
+    }
+
+    const dispatchQueueList: DispatchQueue = {
+      routeSummaryList: routeSummaryList,
+    };
+
+    return {
+      success: true,
+      message: `Found ${dispatchQueueDocs.length} documents in dispatch queue for your base location`,
+      dispatchQueueList: dispatchQueueList,
+      totalDocs: dispatchQueueDocs.length,
+      statusCode: 200,
+    };
+  }
+
+  async undoAllScans(loggedInUser: JwtPayload): Promise<{
+    success: boolean;
+    message: string;
+    deletedDocs: number;
+    statusCode: number;
+  }> {
+    //TODO: For ones at transit hub, deleting the doc will make us lose all historical refs. This needs to be handled.
+    return await this.dataSource
+      .transaction(async (manager) => {
+        try {
+          // Find all documents scanned by the logged-in user in READY_FOR_DISPATCH status
+          const docsToProcess = await manager.find(Doc, {
+            where: [
+              {
+                lastScannedBy: loggedInUser.id,
+                status: DocStatus.READY_FOR_DISPATCH,
+              },
+            ],
+          });
+
+          if (docsToProcess.length === 0) {
+            return {
+              success: true,
+              message: "No documents found to undo",
+              deletedDocs: 0,
+              statusCode: 200,
+            };
+          }
+
+          let deletedDocs = 0;
+
+          // Separate documents by action type
+
+          const docsToDelete: Doc[] = [];
+
+          for (const doc of docsToProcess) {
+            // Delete the document
+            docsToDelete.push(doc);
+          }
+
+          // Batch delete documents
+          if (docsToDelete.length > 0) {
+            await manager.remove(Doc, docsToDelete);
+            deletedDocs = docsToDelete.length;
+          }
+
+          return {
+            success: true,
+            message: `Successfully unscanned ${deletedDocs} documents`,
+            deletedDocs: deletedDocs,
+            statusCode: 200,
+          };
+        } catch (error) {
+          console.error("Error in undoAllScans transaction:", error);
+          throw error; // Re-throw to trigger transaction rollback
+        }
+      })
+      .catch((error) => {
+        console.error("Transaction failed in undoAllScans:", error);
+        return {
+          success: false,
+          message: "Failed to undo scans",
+          deletedDocs: 0,
+          statusCode: 500,
+        };
+      });
   }
 
   async purgeMockData(): Promise<{
