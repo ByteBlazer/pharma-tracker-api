@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { Repository } from "typeorm";
+import { DataSource, Repository } from "typeorm";
 
 import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
@@ -17,7 +17,8 @@ export class DocService {
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
     @InjectRepository(Doc)
-    private readonly docRepository: Repository<Doc>
+    private readonly docRepository: Repository<Doc>,
+    private dataSource: DataSource
   ) {}
 
   async scanAndAdd(
@@ -38,7 +39,10 @@ export class DocService {
       where: { id: docId },
     });
     if (existingDoc) {
-      //TODO: If existing doc and existing doc status is not delivered, and ERP status is delivered, then flip our DB status also to delivered.
+      if (docFromErp) {
+        //TODO: If existing doc and existing doc status does not equals delivered, and ERP status is delivered,then return a custom error message.
+        //No need to flip our DB.
+      }
 
       // Update document for all cases that allow scanning
       if (
@@ -85,11 +89,19 @@ export class DocService {
             statusCode: 409, // Conflict
           };
 
+        case DocStatus.READY_FOR_DISPATCH_FROM_HUB:
+          return {
+            success: true,
+            message: "Doc ID re-scanned. Was already in route queue",
+            docId: docId,
+            statusCode: 409, // Conflict
+          };
+
         case DocStatus.UNDELIVERED:
           return {
             success: true,
             message:
-              "Doc ID scanned successfully (previous delivery attempt failed)",
+              "Scanned and added to Route Queue (previous delivery attempt failed)",
             docId: docId,
             statusCode: 200, // OK
           };
@@ -97,24 +109,31 @@ export class DocService {
         case DocStatus.AT_TRANSIT_HUB:
           return {
             success: true,
-            message: "Doc ID scanned successfully from transit hub",
+            message: "Scanned from transit hub and added to Route Queue",
             docId: docId,
             statusCode: 200, // OK
           };
       }
     }
 
+    //Below code runs only if the doc is not found in the database
     let matchedDoc = null;
     if (erpMatchFound) {
       matchedDoc = docFromErp;
     } else {
+      //If not found in ERP, then check in mock data
       matchedDoc = this.appService
         .getMockDocs()
         .find((doc) => doc.docId === docId);
     }
 
     if (!matchedDoc) {
-      throw new NotFoundException(`No Document with ID ${docId} found in ERP`);
+      return {
+        success: false,
+        message: "Doc ID not found in ERP", //as well as mock data
+        docId: docId,
+        statusCode: 400, // Bad Request
+      };
     }
 
     // Check if customer exists, create or update it
@@ -138,6 +157,7 @@ export class DocService {
       });
     } else {
       // Update existing customer record with latest details
+      // Do not update any geo coordinates
       customer.firmName = matchedDoc.customerName;
       customer.address = matchedDoc.customerAddress;
       customer.city = matchedDoc.customerCity;
@@ -145,13 +165,13 @@ export class DocService {
       customer.phone = matchedDoc.customerPhone;
       customer.lastUpdatedAt = new Date();
     }
-
-    await this.customerRepository.save(customer);
-
     // Create new document record
     const newDoc = this.docRepository.create({
       id: matchedDoc.docId,
-      status: DocStatus.READY_FOR_DISPATCH,
+      status:
+        existingDoc && existingDoc.status == DocStatus.AT_TRANSIT_HUB
+          ? DocStatus.READY_FOR_DISPATCH_FROM_HUB
+          : DocStatus.READY_FOR_DISPATCH,
       lastScannedBy: lastScannedBy,
       originWarehouse: matchedDoc.whseLocationName,
       tripId: null, // No trip_id for now
@@ -163,14 +183,29 @@ export class DocService {
       createdAt: new Date(),
       lastUpdatedAt: new Date(),
     });
-
-    await this.docRepository.save(newDoc);
+    try {
+      await this.dataSource.transaction(async (entityManager) => {
+        await entityManager
+          .getRepository(this.customerRepository.target)
+          .save(customer);
+        await entityManager
+          .getRepository(this.docRepository.target)
+          .save(newDoc);
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Error adding document: " + error.message,
+        docId: docId,
+        statusCode: 500, // Internal Server Error
+      };
+    }
 
     return {
       success: true,
-      message: "Document added successfully",
+      message: "Scanned and added to Route Queue",
       docId: docId,
-      statusCode: 201, // Created
+      statusCode: 200, // Created
     };
   }
 

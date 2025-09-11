@@ -9,6 +9,7 @@ import { GreetingController } from "./controllers/greeting.controller";
 import { LocationController } from "./controllers/location.controller";
 import { AppUserXUserRole } from "./entities/app-user-x-user-role.entity";
 import { AppUser } from "./entities/app-user.entity";
+import { BaseLocation } from "./entities/base-location.entity";
 import { Customer } from "./entities/customer.entity";
 import { Doc } from "./entities/doc.entity";
 import { LocationHeartbeat } from "./entities/location-heartbeat.entity";
@@ -41,6 +42,7 @@ import { AppService } from "./services/app.service";
       database: process.env.DB_DATABASE,
       entities: [
         AppUser,
+        BaseLocation,
         UserRole,
         LocationHeartbeat,
         AppUserXUserRole,
@@ -53,6 +55,7 @@ import { AppService } from "./services/app.service";
     }),
     TypeOrmModule.forFeature([
       AppUser,
+      BaseLocation,
       UserRole,
       LocationHeartbeat,
       AppUserXUserRole,
