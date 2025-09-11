@@ -1,30 +1,25 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Res,
-  HttpStatus,
-  Query,
-  BadRequestException,
+    BadRequestException,
+    Controller,
+    Delete,
+    Get,
+    HttpStatus,
+    Param,
+    Post,
+    Query,
+    Res,
 } from "@nestjs/common";
-import { RequireRoles } from "src/decorators/require-roles.decorator";
-import { UserRole } from "src/enums/user-role.enum";
-import { DocService } from "../services/doc.service";
-import { AppService } from "../services/app.service";
 import { Throttle } from "@nestjs/throttler";
 import { Response } from "express";
+import { RequireRoles } from "src/decorators/require-roles.decorator";
+import { UserRole } from "src/enums/user-role.enum";
 import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { DocService } from "../services/doc.service";
 
 @Controller("doc")
 export class DocController {
-  constructor(
-    private readonly docService: DocService,
-    private readonly appService: AppService
-  ) {}
+  constructor(private readonly docService: DocService) {}
 
   @Post("scan-and-add/:docId")
   @RequireRoles(UserRole.APP_ADMIN, UserRole.APP_SCANNER)

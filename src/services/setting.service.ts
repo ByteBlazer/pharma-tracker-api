@@ -1,12 +1,12 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { Setting } from "../entities/setting.entity";
 import { UpdateSettingDto } from "../dto/update-setting.dto";
+import { Setting } from "../entities/setting.entity";
 import { SettingEnum } from "../enums/setting.enum";
 import { SettingsCacheService } from "./settings-cache.service";
 

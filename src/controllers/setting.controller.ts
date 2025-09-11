@@ -1,17 +1,17 @@
 import {
-  Controller,
-  Put,
-  Body,
-  Res,
-  HttpStatus,
-  BadRequestException,
-  NotFoundException,
+    BadRequestException,
+    Body,
+    Controller,
+    HttpStatus,
+    NotFoundException,
+    Put,
+    Res,
 } from "@nestjs/common";
 import { Response } from "express";
-import { SettingService } from "../services/setting.service";
-import { UpdateSettingDto } from "../dto/update-setting.dto";
 import { RequireRoles } from "../decorators/require-roles.decorator";
+import { UpdateSettingDto } from "../dto/update-setting.dto";
 import { UserRole } from "../enums/user-role.enum";
+import { SettingService } from "../services/setting.service";
 
 @Controller("setting")
 export class SettingController {

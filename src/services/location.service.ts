@@ -6,9 +6,9 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { LocationItemDto } from "../dto/location-item.dto";
 import { LocationRegisterRequestDto } from "../dto/location-register-request.dto";
 import { UserLocationResponseDto } from "../dto/user-location-response.dto";
-import { LocationItemDto } from "../dto/location-item.dto";
 import { AppUser } from "../entities/app-user.entity";
 import { LocationHeartbeat } from "../entities/location-heartbeat.entity";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";

@@ -1,24 +1,24 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { DataSource, LoggerOptions, MoreThan, Repository, In } from "typeorm";
+import { DataSource, In, MoreThan, Repository } from "typeorm";
 
+import { GlobalConstants } from "src/GlobalConstants";
+import { DispatchQueue } from "src/interfaces/dispatch-queue.interface";
+import { JwtPayload } from "src/interfaces/jwt-payload.interface";
+import { RouteSummary } from "src/interfaces/route-summary.interface";
+import { ScannedUserSummary } from "src/interfaces/scanned-user-summary.interface";
 import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
-import { AppService } from "./app.service";
-import { GlobalConstants } from "src/GlobalConstants";
-import { JwtPayload } from "src/interfaces/jwt-payload.interface";
-import { ScannedUserSummary } from "src/interfaces/scanned-user-summary.interface";
-import { RouteSummary } from "src/interfaces/route-summary.interface";
-import { DispatchQueue } from "src/interfaces/dispatch-queue.interface";
+import { MockDataService } from "./mock-data.service";
 import { SettingsCacheService } from "./settings-cache.service";
 
 @Injectable()
 export class DocService {
   constructor(
-    private readonly appService: AppService,
+    private readonly mockDataService: MockDataService,
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
     @InjectRepository(Doc)
@@ -120,7 +120,7 @@ export class DocService {
       matchedDoc = docFromErp;
     } else {
       //If not found in ERP, then check in mock data
-      matchedDoc = this.appService
+      matchedDoc = this.mockDataService
         .getMockDocs()
         .find((doc) => doc.docId === docId);
     }
@@ -404,8 +404,8 @@ export class DocService {
       .where("id LIKE :prefix", { prefix: mockPrefix })
       .execute();
 
-    // Clear mock data from AppService after successful database cleanup
-    this.appService.clearMockDocs();
+    // Clear mock data from MockDataService after successful database cleanup
+    this.mockDataService.clearMockDocs();
 
     return {
       deletedDocs: deletedDocs.affected || 0,
@@ -501,7 +501,7 @@ export class DocService {
     }
 
     // Add all mock docs to app service
-    this.appService.addMockDocs(mockDocs);
+    this.mockDataService.addMockDocs(mockDocs);
 
     // Generate PDF with barcodes
     const pdfBuffer = await this.generatePdfWithBarcodes(mockDocs);

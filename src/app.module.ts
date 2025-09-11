@@ -23,7 +23,7 @@ import { GreetingService } from "./services/greeting.service";
 import { LocationService } from "./services/location.service";
 import { SettingService } from "./services/setting.service";
 import { SettingsCacheService } from "./services/settings-cache.service";
-import { AppService } from "./services/app.service";
+import { MockDataService } from "./services/mock-data.service";
 
 @Module({
   imports: [
@@ -98,7 +98,7 @@ import { AppService } from "./services/app.service";
     GreetingService,
     SettingService,
     SettingsCacheService,
-    AppService,
+    MockDataService,
   ],
   exports: [AuthService, JwtAuthGuard],
 })

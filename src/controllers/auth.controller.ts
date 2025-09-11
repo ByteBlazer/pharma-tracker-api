@@ -1,9 +1,9 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
-import { AuthService } from "../services/auth.service";
+import { Throttle } from "@nestjs/throttler";
 import { SkipAuth } from "../decorators/skip-auth.decorator";
 import { AuthRequestDto } from "../dto/auth-request.dto";
 import { AuthResponseDto } from "../dto/auth-response.dto";
-import { Throttle } from "@nestjs/throttler";
+import { AuthService } from "../services/auth.service";
 
 @Controller("auth")
 export class AuthController {
