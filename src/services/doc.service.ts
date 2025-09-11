@@ -3,12 +3,13 @@ import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { DataSource, Repository } from "typeorm";
+import { DataSource, LoggerOptions, MoreThan, Repository } from "typeorm";
 
 import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
 import { AppService } from "./app.service";
 import { GlobalConstants } from "src/GlobalConstants";
+import { JwtPayload } from "src/interfaces/jwt-payload.interface";
 
 @Injectable()
 export class DocService {
@@ -23,7 +24,7 @@ export class DocService {
 
   async scanAndAdd(
     docId: string,
-    lastScannedBy: string
+    loggedInUser: JwtPayload
   ): Promise<{
     success: boolean;
     message: string;
@@ -50,7 +51,7 @@ export class DocService {
         existingDoc.status !== DocStatus.TRIP_SCHEDULED &&
         existingDoc.status !== DocStatus.ON_TRIP
       ) {
-        existingDoc.lastScannedBy = lastScannedBy;
+        existingDoc.lastScannedBy = loggedInUser.id;
         existingDoc.lastUpdatedAt = new Date();
         await this.docRepository.save(existingDoc);
       }
@@ -116,7 +117,7 @@ export class DocService {
       }
     }
 
-    //Below code runs only if the doc is not found in the database
+    //From here on, the code below runs only if the doc is not found in the database
     let matchedDoc = null;
     if (erpMatchFound) {
       matchedDoc = docFromErp;
@@ -134,6 +135,33 @@ export class DocService {
         docId: docId,
         statusCode: 400, // Bad Request
       };
+    }
+
+    // Check user's previous scan within configured timeout (only for new documents)
+    const timeoutMinutes = GlobalConstants.SCAN_ROUTE_TIMEOUT_MINUTES;
+    const timeoutAgo = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+    const lastScan = await this.docRepository.findOne({
+      where: {
+        lastScannedBy: loggedInUser.id,
+        lastUpdatedAt: MoreThan(timeoutAgo),
+      },
+      order: { lastUpdatedAt: "DESC" },
+    });
+
+    if (lastScan) {
+      if (lastScan.route !== matchedDoc.routeId) {
+        const timeDiff = Math.floor(
+          (Date.now() - lastScan.lastUpdatedAt.getTime()) / (1000 * 60)
+        );
+        const remainingMinutes = timeoutMinutes - timeDiff;
+
+        return {
+          success: false,
+          message: `Route conflict detected. Previous scan route: ${lastScan.route}. Current scan route: ${matchedDoc.routeId}. Please wait for ${remainingMinutes} minute(s) cooling off period and then reattempt scan.`,
+          docId: docId,
+          statusCode: 400, // Bad Request
+        };
+      }
     }
 
     // Check if customer exists, create or update it
@@ -172,7 +200,7 @@ export class DocService {
         existingDoc && existingDoc.status == DocStatus.AT_TRANSIT_HUB
           ? DocStatus.READY_FOR_DISPATCH_FROM_HUB
           : DocStatus.READY_FOR_DISPATCH,
-      lastScannedBy: lastScannedBy,
+      lastScannedBy: loggedInUser.id,
       originWarehouse: matchedDoc.whseLocationName,
       tripId: null, // No trip_id for now
       docDate: matchedDoc.docDate,

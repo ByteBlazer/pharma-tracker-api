@@ -34,7 +34,7 @@ export class DocController {
     @Res() res: Response
   ): Promise<void> {
     try {
-      const result = await this.docService.scanAndAdd(docId, loggedInUser.id);
+      const result = await this.docService.scanAndAdd(docId, loggedInUser);
 
       res.status(result.statusCode).json({
         success: result.success,
