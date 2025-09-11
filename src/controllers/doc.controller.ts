@@ -1,13 +1,13 @@
 import {
-    BadRequestException,
-    Controller,
-    Delete,
-    Get,
-    HttpStatus,
-    Param,
-    Post,
-    Query,
-    Res,
+  BadRequestException,
+  Controller,
+  Delete,
+  Get,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Res,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { Response } from "express";
@@ -16,6 +16,7 @@ import { UserRole } from "src/enums/user-role.enum";
 import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { DocService } from "../services/doc.service";
+import { SkipAuth } from "src/decorators/skip-auth.decorator";
 
 @Controller("doc")
 export class DocController {
@@ -105,7 +106,7 @@ export class DocController {
   }
 
   @Get("create-mock-docs")
-  @RequireRoles()
+  @SkipAuth()
   @Throttle({ default: { limit: 5, ttl: 1 * 60 * 1000 } })
   async createMockData(
     @Query("useOneRealPhoneNumber") useOneRealPhoneNumber: string,

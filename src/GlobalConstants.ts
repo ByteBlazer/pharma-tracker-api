@@ -11,6 +11,8 @@ export class GlobalConstants {
 
   static readonly MOCK_CUSTOMER_PREFIX = "MOCKCUST";
 
+  static readonly NUM_BARCODES_IN_PDF = 12;
+
   // Customer data with cities, pincodes, and routes (100 customers)
   static readonly CUSTOMERS = [
     // Route 1 - Ernakulam

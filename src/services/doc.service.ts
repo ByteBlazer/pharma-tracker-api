@@ -428,7 +428,7 @@ export class DocService {
     const customers = GlobalConstants.CUSTOMERS;
 
     // Generate 10 mock documents with 50% having blank status
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < GlobalConstants.NUM_BARCODES_IN_PDF; i++) {
       let selectedCustomer;
 
       // If real phone number is provided, use first customer (ABC Pharmaceuticals) for first document
@@ -524,47 +524,82 @@ export class DocService {
         doc.on("end", () => resolve(Buffer.concat(buffers)));
         doc.on("error", reject);
 
-        // Add title
-        doc.fontSize(20).text("Document Barcodes", { align: "center" });
-        doc.moveDown(2);
+        // Add documents in a 2x2 grid (4 per page)
+        const docsPerPage = 4;
+        const totalPages = Math.ceil(mockDocs.length / docsPerPage);
 
-        // Add each document with its barcode
-        mockDocs.forEach((docData, index) => {
-          // Add document info
-          doc
-            .fontSize(12)
-            .text(`Document ${index + 1}:`, { underline: true })
-            .text(`Doc ID: ${docData.docId}`)
-            .text(`Customer: ${docData.customerName}`)
-            .text(`Phone: ${docData.customerPhone || "Not available"}`)
-            .text(`Route: ${docData.routeId}`)
-            .text(`Lot Number: ${docData.lotNbr || "Not assigned"}`)
-            .text(`Doc Date: ${docData.docDate.toLocaleDateString()}`)
-            .text(`Doc Amount: Rs. ${docData.docAmount}`)
-            .text(`Status: ${docData.status || "Blank"}`)
-            .moveDown(1);
-
-          // Generate barcode
-          const canvas = require("canvas").createCanvas(200, 50);
-          JsBarcode(canvas, docData.docId, {
-            format: "CODE128",
-            width: 2,
-            height: 40,
-            displayValue: true,
-            fontSize: 12,
-            margin: 10,
-          });
-
-          // Add barcode to PDF
-          const barcodeImage = canvas.toBuffer("image/png");
-          doc.image(barcodeImage, { width: 200, height: 50 });
-          doc.moveDown(2);
-
-          // Add page break if not the last document
-          if (index < mockDocs.length - 1) {
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) {
             doc.addPage();
           }
-        });
+
+          const startIndex = page * docsPerPage;
+          const endIndex = Math.min(startIndex + docsPerPage, mockDocs.length);
+          const pageDocs = mockDocs.slice(startIndex, endIndex);
+
+          // Calculate grid positions
+          const pageWidth = doc.page.width - 100; // Account for margins
+          const pageHeight = doc.page.height - 100;
+          const cellWidth = pageWidth / 2;
+          const cellHeight = pageHeight / 2;
+
+          pageDocs.forEach((docData, gridIndex) => {
+            const row = Math.floor(gridIndex / 2);
+            const col = gridIndex % 2;
+
+            const x = 50 + col * cellWidth;
+            const y = 50 + row * cellHeight;
+
+            // Save current position
+            doc.save();
+
+            // Move to grid position
+            doc.x = x;
+            doc.y = y;
+
+            // Add document info
+            doc
+              .fontSize(10)
+              .text(`Doc ${startIndex + gridIndex + 1}:`, { underline: true })
+              .moveDown(0.3);
+
+            // Make DOC ID more prominent
+            doc
+              .fontSize(12)
+              .text(`DOC ID: ${docData.docId}`, { bold: true })
+              .moveDown(0.2);
+
+            // Other document details in smaller font
+            doc
+              .fontSize(8)
+              .text(`Customer: ${docData.customerName}`)
+              .text(`Phone: ${docData.customerPhone || "N/A"}`)
+              .text(`Route: ${docData.routeId}`)
+              .text(`Lot: ${docData.lotNbr || "N/A"}`)
+              .text(`Date: ${docData.docDate.toLocaleDateString()}`)
+              .text(`Amount: Rs. ${docData.docAmount}`)
+              .text(`Status: ${docData.status || "Blank"}`)
+              .moveDown(0.3);
+
+            // Generate barcode
+            const canvas = require("canvas").createCanvas(150, 40);
+            JsBarcode(canvas, docData.docId, {
+              format: "CODE128",
+              width: 1.5,
+              height: 30,
+              displayValue: true,
+              fontSize: 10,
+              margin: 5,
+            });
+
+            // Add barcode to PDF
+            const barcodeImage = canvas.toBuffer("image/png");
+            doc.image(barcodeImage, { width: 150, height: 40 });
+
+            // Restore position
+            doc.restore();
+          });
+        }
 
         doc.end();
       } catch (error) {
