@@ -47,7 +47,7 @@ export class DocService {
     if (existingDoc) {
       if (docFromErp) {
         //TODO: If existing doc and existing doc status does not equals delivered, and ERP status is delivered,then return a custom error message.
-        //No need to flip our DB.
+        //Flip our DB too.
       }
 
       // Update document for all cases that allow scanning
