@@ -26,7 +26,7 @@ export class LocationHeartbeat {
   @Column({ name: "received_at", type: "timestamp", default: () => "NOW()" })
   receivedAt: Date;
 
-  @ManyToOne(() => AppUser, { onDelete: "CASCADE" })
+  @ManyToOne(() => AppUser)
   @JoinColumn({ name: "app_user_id" })
   appUser: AppUser;
 

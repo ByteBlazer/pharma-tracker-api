@@ -10,11 +10,11 @@ export class AppUserXUserRole {
   @PrimaryColumn({ name: "role_name", type: "varchar", length: 25 })
   roleName: string;
 
-  @ManyToOne(() => AppUser, { onDelete: "CASCADE" })
+  @ManyToOne(() => AppUser)
   @JoinColumn({ name: "app_user_id" })
   appUser: AppUser;
 
-  @ManyToOne(() => UserRole, { onDelete: "CASCADE" })
+  @ManyToOne(() => UserRole)
   @JoinColumn({ name: "role_name" })
   userRole: UserRole;
 }
