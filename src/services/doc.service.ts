@@ -303,6 +303,16 @@ export class DocService {
       });
     }
 
+    // Sort routeSummaryList by route (alphabetically ascending)
+    routeSummaryList.sort((a, b) => a.route.localeCompare(b.route));
+
+    // Sort userSummaryList by scannedByUserId (ascending) for each route
+    routeSummaryList.forEach((routeSummary) => {
+      routeSummary.userSummaryList.sort((a, b) =>
+        a.scannedByUserId.localeCompare(b.scannedByUserId)
+      );
+    });
+
     const dispatchQueueList: DispatchQueue = {
       routeSummaryList: routeSummaryList,
     };
