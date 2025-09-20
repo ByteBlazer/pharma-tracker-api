@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { DataSource, In, MoreThan, Repository } from "typeorm";
+import { DataSource, In, Like, MoreThan, Repository } from "typeorm";
 
 import { GlobalConstants } from "src/GlobalConstants";
 import { DispatchQueue } from "src/interfaces/dispatch-queue.interface";
@@ -12,6 +12,7 @@ import { RouteSummary } from "src/interfaces/route-summary.interface";
 import { ScannedUserSummary } from "src/interfaces/scanned-user-summary.interface";
 import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
+import { AppUser } from "../entities/app-user.entity";
 import { MockDataService } from "./mock-data.service";
 import { SettingsCacheService } from "./settings-cache.service";
 
@@ -23,6 +24,8 @@ export class DocService {
     private readonly customerRepository: Repository<Customer>,
     @InjectRepository(Doc)
     private readonly docRepository: Repository<Doc>,
+    @InjectRepository(AppUser)
+    private readonly appUserRepository: Repository<AppUser>,
     private readonly settingsCacheService: SettingsCacheService,
     private dataSource: DataSource
   ) {}
@@ -47,7 +50,7 @@ export class DocService {
     if (existingDoc) {
       if (docFromErp) {
         //TODO: If existing doc and existing doc status does not equals delivered, and ERP status is delivered,then return a custom error message.
-        //No need to flip our DB.
+        //Flip our DB too.
       }
 
       // Update document for all cases that allow scanning
@@ -238,12 +241,13 @@ export class DocService {
 
   async getDispatchQueueForUser(loggedInUser: JwtPayload) {
     // Find all users with the same base location
-    const usersInSameLocation = await this.dataSource
-      .getRepository("AppUser")
-      .find({
-        where: { baseLocationId: loggedInUser.baseLocationId },
-        select: ["id", "personName"],
-      });
+    const usersInSameLocation = await this.appUserRepository.find({
+      where: { baseLocationId: loggedInUser.baseLocationId },
+      select: {
+        id: true,
+        personName: true,
+      },
+    });
 
     const userIds = usersInSameLocation.map((user) => user.id);
 
@@ -400,26 +404,30 @@ export class DocService {
   }> {
     const mockPrefix = `${GlobalConstants.MOCK_CUSTOMER_PREFIX}%`;
 
-    // First, delete all docs where customerId starts with the mock prefix
-    const deletedDocs = await this.docRepository
-      .createQueryBuilder()
-      .delete()
-      .where("customerId LIKE :prefix", { prefix: mockPrefix })
-      .execute();
+    // First, find and delete all docs where customerId starts with the mock prefix
+    const docsToDelete = await this.docRepository.find({
+      where: {
+        customerId: Like(mockPrefix),
+      },
+    });
+    const deletedDocsResult = await this.docRepository.remove(docsToDelete);
 
-    // Then, delete all customers with the mock prefix
-    const deletedCustomers = await this.customerRepository
-      .createQueryBuilder()
-      .delete()
-      .where("id LIKE :prefix", { prefix: mockPrefix })
-      .execute();
+    // Then, find and delete all customers with the mock prefix
+    const customersToDelete = await this.customerRepository.find({
+      where: {
+        id: Like(mockPrefix),
+      },
+    });
+    const deletedCustomersResult = await this.customerRepository.remove(
+      customersToDelete
+    );
 
     // Clear mock data from MockDataService after successful database cleanup
     this.mockDataService.clearMockDocs();
 
     return {
-      deletedDocs: deletedDocs.affected || 0,
-      deletedCustomers: deletedCustomers.affected || 0,
+      deletedDocs: deletedDocsResult.length,
+      deletedCustomers: deletedCustomersResult.length,
     };
   }
 

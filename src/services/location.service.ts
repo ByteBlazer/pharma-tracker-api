@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Repository, MoreThan } from "typeorm";
 import { LocationItemDto } from "../dto/location-item.dto";
 import { LocationRegisterRequestDto } from "../dto/location-register-request.dto";
 import { UserLocationResponseDto } from "../dto/user-location-response.dto";
@@ -107,12 +107,15 @@ export class LocationService {
       }
 
       // Fetch locations from the database
-      const locations = await this.locationHeartbeatRepository
-        .createQueryBuilder("location")
-        .where("location.appUserId = :userId", { userId })
-        .andWhere("location.receivedAt >= :startTime", { startTime })
-        .orderBy("location.receivedAt", "DESC")
-        .getMany();
+      const locations = await this.locationHeartbeatRepository.find({
+        where: {
+          appUserId: userId,
+          receivedAt: MoreThan(startTime),
+        },
+        order: {
+          receivedAt: "DESC",
+        },
+      });
 
       // Transform to response format
       const locationItems: LocationItemDto[] = locations.map((location) => ({

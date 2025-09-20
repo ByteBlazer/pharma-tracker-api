@@ -15,6 +15,9 @@ export class AppUser {
   @Column({ name: "base_location_id", type: "varchar", length: 50 })
   baseLocationId: string;
 
+  @Column({ name: "vehicle_nbr", type: "varchar", length: 25 })
+  vehicleNbr: string;
+
   @ManyToOne(() => BaseLocation)
   @JoinColumn({ name: "base_location_id" })
   baseLocation: BaseLocation;
