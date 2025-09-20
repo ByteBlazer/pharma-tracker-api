@@ -133,12 +133,48 @@ export class TripService {
     const drivers = await this.getUsersByIds(driverUserIds);
 
     // Transform to AvailableDriver format
-    const availableDrivers: AvailableDriver[] = drivers.map((driver) => ({
-      userId: driver.id,
-      userName: driver.personName,
-      sameLocation: driver.baseLocationId === loggedInUser.baseLocationId,
-      self: driver.id === loggedInUser.id,
-    }));
+    const availableDrivers: AvailableDriver[] = drivers.map((driver) => {
+      const isSelf = driver.id === loggedInUser.id;
+      const isSameLocation =
+        driver.baseLocationId === loggedInUser.baseLocationId;
+
+      let driverName = driver.personName;
+
+      // Add [SELF] prefix if driver is self
+      if (isSelf) {
+        driverName = `[SELF] ${driverName}`;
+      }
+      // Add base location suffix if driver is from different location
+      else if (!isSameLocation && driver.baseLocation?.name) {
+        driverName = `${driverName} (${driver.baseLocation.name})`;
+      }
+
+      return {
+        userId: driver.id,
+        driverName: driverName,
+        vehicleNumber: driver.vehicleNbr,
+        baseLocationName: driver.baseLocation?.name || "",
+        sameLocation: isSameLocation,
+        self: isSelf,
+      };
+    });
+
+    // Sort the drivers list according to priority:
+    // 1. Self driver first
+    // 2. Same location drivers second
+    // 3. Different location drivers last
+    availableDrivers.sort((a, b) => {
+      // Self driver always comes first
+      if (a.self && !b.self) return -1;
+      if (!a.self && b.self) return 1;
+
+      // If both are self or both are not self, sort by location
+      if (a.sameLocation && !b.sameLocation) return -1;
+      if (!a.sameLocation && b.sameLocation) return 1;
+
+      // If same priority level, sort alphabetically by driver name
+      return a.driverName.localeCompare(b.driverName);
+    });
 
     return {
       success: true,
@@ -156,6 +192,10 @@ export class TripService {
         id: true,
         personName: true,
         baseLocationId: true,
+        vehicleNbr: true,
+      },
+      relations: {
+        baseLocation: true,
       },
     });
   }

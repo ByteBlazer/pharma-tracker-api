@@ -1,6 +1,8 @@
 export interface AvailableDriver {
   userId: string;
-  userName: string;
+  driverName: string;
+  vehicleNumber: string;
+  baseLocationName: string;
   sameLocation: boolean;
   self: boolean;
 }
