@@ -137,13 +137,17 @@ export class AuthService {
 
     const user = await this.appUserRepository.findOne({
       where: { mobile: authRequestDto.mobile },
-      relations: ["baseLocation"],
+      relations: {
+        baseLocation: true,
+      },
     });
 
     // Fetch user roles
     const userRoles = await this.appUserXUserRoleRepository.find({
       where: { appUserId: user.id },
-      relations: ["userRole"],
+      relations: {
+        userRole: true,
+      },
     });
 
     // Create comma-separated string of role names

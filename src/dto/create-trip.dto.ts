@@ -22,5 +22,5 @@ export class CreateTripDto {
 
   @IsString()
   @IsNotEmpty()
-  vehicleNumber: string;
+  vehicleNbr: string;
 }

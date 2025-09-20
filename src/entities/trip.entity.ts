@@ -15,22 +15,22 @@ export class Trip {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: "varchar", length: 50 })
+  @Column({ name: "created_by", type: "varchar", length: 50 })
   createdBy: string;
 
-  @Column({ type: "varchar", length: 50 })
+  @Column({ name: "driven_by", type: "varchar", length: 50 })
   drivenBy: string;
 
-  @Column({ type: "varchar", length: 25 })
+  @Column({ name: "vehicle_nbr", type: "varchar", length: 25 })
   vehicleNbr: string;
 
-  @Column({ type: "enum", enum: TripStatus })
+  @Column({ name: "status", type: "enum", enum: TripStatus })
   status: TripStatus;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: "last_updated_at" })
   lastUpdatedAt: Date;
 
   @ManyToOne(() => AppUser)

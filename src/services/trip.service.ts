@@ -4,10 +4,13 @@ import { Repository, DataSource, In } from "typeorm";
 import { Trip } from "../entities/trip.entity";
 import { Doc } from "../entities/doc.entity";
 import { AppUser } from "../entities/app-user.entity";
+import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
 import { CreateTripDto } from "../dto/create-trip.dto";
 import { TripStatus } from "../enums/trip-status.enum";
 import { DocStatus } from "../enums/doc-status.enum";
+import { UserRole } from "../enums/user-role.enum";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { AvailableDriver } from "../interfaces/available-driver.interface";
 
 @Injectable()
 export class TripService {
@@ -18,11 +21,18 @@ export class TripService {
     private docRepository: Repository<Doc>,
     @InjectRepository(AppUser)
     private appUserRepository: Repository<AppUser>,
+    @InjectRepository(AppUserXUserRole)
+    private appUserXUserRoleRepository: Repository<AppUserXUserRole>,
     private dataSource: DataSource
   ) {}
 
   async createTrip(createTripDto: CreateTripDto, loggedInUser: JwtPayload) {
-    const { route, userIds, driverId, vehicleNumber } = createTripDto;
+    const {
+      route,
+      userIds,
+      driverId,
+      vehicleNbr: vehicleNumber,
+    } = createTripDto;
 
     // Validate that all userIds exist and have documents in READY_FOR_DISPATCH status for the given route
     const documentsToLoad = await this.docRepository.find({
@@ -105,5 +115,48 @@ export class TripService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async getAvailableDrivers(loggedInUser: JwtPayload) {
+    // Get all users with APP_TRIP_DRIVER role from junction table
+    const driverRoleMappings = await this.appUserXUserRoleRepository.find({
+      where: { roleName: UserRole.APP_TRIP_DRIVER },
+      select: { appUserId: true }, // Only select the user ID we need
+    });
+
+    // Extract unique user IDs
+    const driverUserIds = [
+      ...new Set(driverRoleMappings.map((mapping) => mapping.appUserId)),
+    ];
+
+    // Get user details for drivers using entity properties
+    const drivers = await this.getUsersByIds(driverUserIds);
+
+    // Transform to AvailableDriver format
+    const availableDrivers: AvailableDriver[] = drivers.map((driver) => ({
+      userId: driver.id,
+      userName: driver.personName,
+      sameLocation: driver.baseLocationId === loggedInUser.baseLocationId,
+      self: driver.id === loggedInUser.id,
+    }));
+
+    return {
+      success: true,
+      message: `Found ${availableDrivers.length} available drivers`,
+      drivers: availableDrivers,
+      statusCode: 200,
+    };
+  }
+
+  private async getUsersByIds(userIds: string[]) {
+    // Use entity property names directly - TypeORM will handle the column mapping
+    return await this.appUserRepository.find({
+      where: { id: In(userIds) },
+      select: {
+        id: true,
+        personName: true,
+        baseLocationId: true,
+      },
+    });
   }
 }

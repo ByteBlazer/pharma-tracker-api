@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
   UseGuards,
   ValidationPipe,
@@ -24,5 +25,10 @@ export class TripController {
     @LoggedInUser() loggedInUser: JwtPayload
   ) {
     return await this.tripService.createTrip(createTripDto, loggedInUser);
+  }
+
+  @Get("available-drivers")
+  async getAvailableDrivers(@LoggedInUser() loggedInUser: JwtPayload) {
+    return await this.tripService.getAvailableDrivers(loggedInUser);
   }
 }
