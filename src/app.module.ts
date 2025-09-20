@@ -8,6 +8,7 @@ import { DocController } from "./controllers/doc.controller";
 import { GreetingController } from "./controllers/greeting.controller";
 import { LocationController } from "./controllers/location.controller";
 import { SettingController } from "./controllers/setting.controller";
+import { TripController } from "./controllers/trip.controller";
 import { AppUserXUserRole } from "./entities/app-user-x-user-role.entity";
 import { AppUser } from "./entities/app-user.entity";
 import { BaseLocation } from "./entities/base-location.entity";
@@ -15,6 +16,7 @@ import { Customer } from "./entities/customer.entity";
 import { Doc } from "./entities/doc.entity";
 import { LocationHeartbeat } from "./entities/location-heartbeat.entity";
 import { Setting } from "./entities/setting.entity";
+import { Trip } from "./entities/trip.entity";
 import { UserRole } from "./entities/user-role.entity";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { AuthService } from "./services/auth.service";
@@ -24,6 +26,7 @@ import { LocationService } from "./services/location.service";
 import { SettingService } from "./services/setting.service";
 import { SettingsCacheService } from "./services/settings-cache.service";
 import { MockDataService } from "./services/mock-data.service";
+import { TripService } from "./services/trip.service";
 
 @Module({
   imports: [
@@ -53,6 +56,7 @@ import { MockDataService } from "./services/mock-data.service";
         Customer,
         Doc,
         Setting,
+        Trip,
       ],
       autoLoadEntities: false,
       synchronize: false,
@@ -67,6 +71,7 @@ import { MockDataService } from "./services/mock-data.service";
       Customer,
       Doc,
       Setting,
+      Trip,
     ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -85,6 +90,7 @@ import { MockDataService } from "./services/mock-data.service";
     LocationController,
     GreetingController,
     SettingController,
+    TripController,
   ],
   providers: [
     {
@@ -99,6 +105,7 @@ import { MockDataService } from "./services/mock-data.service";
     SettingService,
     SettingsCacheService,
     MockDataService,
+    TripService,
   ],
   exports: [AuthService, JwtAuthGuard],
 })
