@@ -160,9 +160,7 @@ export class DocService {
 
         return {
           success: false,
-          message: `Route conflict detected. Previous scan route: ${lastScan.route}. 
-          Current scan route: ${matchedDoc.routeId}. 
-          Please wait for ${remainingSeconds} second(s) cooling off period and then reattempt scan.`,
+          message: `Route conflict detected. Previous scan route: ${lastScan.route}. Current scan route: ${matchedDoc.routeId}. Please wait for ${remainingSeconds} second(s) cooling off period and then reattempt scan.`,
           docId: docId,
           statusCode: 400, // Bad Request
         };
