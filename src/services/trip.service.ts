@@ -350,20 +350,31 @@ export class TripService {
       },
     });
 
-    // Transform the trips to include relevant information
-    const tripsWithDetails: TripOutputDto[] = scheduledTrips.map((trip) => ({
-      tripId: trip.id,
-      createdBy: trip.creator.personName,
-      createdById: trip.createdBy,
-      driverName: trip.driver.personName,
-      driverId: trip.drivenBy,
-      vehicleNumber: trip.vehicleNbr,
-      status: trip.status,
-      createdAt: trip.createdAt,
-      lastUpdatedAt: trip.lastUpdatedAt,
-      creatorLocation: trip.creator.baseLocation?.name || "",
-      driverLocation: trip.driver.baseLocation?.name || "",
-    }));
+    // Get route information for each trip from associated documents
+    const tripsWithDetails: TripOutputDto[] = await Promise.all(
+      scheduledTrips.map(async (trip) => {
+        // Get route from one of the associated documents
+        const associatedDoc = await this.docRepository.findOne({
+          where: { tripId: trip.id },
+          select: { route: true },
+        });
+
+        return {
+          tripId: trip.id,
+          createdBy: trip.creator.personName,
+          createdById: trip.createdBy,
+          driverName: trip.driver.personName,
+          driverId: trip.drivenBy,
+          vehicleNumber: trip.vehicleNbr,
+          status: trip.status,
+          route: associatedDoc?.route || "",
+          createdAt: trip.createdAt,
+          lastUpdatedAt: trip.lastUpdatedAt,
+          creatorLocation: trip.creator.baseLocation?.name || "",
+          driverLocation: trip.driver.baseLocation?.name || "",
+        };
+      })
+    );
 
     const message =
       tripsWithDetails.length === 0
