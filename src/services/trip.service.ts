@@ -6,6 +6,8 @@ import { Doc } from "../entities/doc.entity";
 import { AppUser } from "../entities/app-user.entity";
 import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
 import { CreateTripDto } from "../dto/create-trip.dto";
+import { TripOutputDto } from "../dto/trip-output.dto";
+import { ScheduledTripsResponseDto } from "../dto/scheduled-trips-response.dto";
 import { TripStatus } from "../enums/trip-status.enum";
 import { DocStatus } from "../enums/doc-status.enum";
 import { UserRole } from "../enums/user-role.enum";
@@ -182,6 +184,201 @@ export class TripService {
       drivers: availableDrivers,
       statusCode: 200,
     };
+  }
+
+  async getScheduledTripsFromSameLocation(
+    loggedInUser: JwtPayload
+  ): Promise<ScheduledTripsResponseDto> {
+    // Get the logged-in user's location ID
+    const userLocationId = loggedInUser.baseLocationId;
+
+    // Find all users who share the same location
+    const usersInSameLocation = await this.appUserRepository.find({
+      where: { baseLocationId: userLocationId },
+      select: { id: true },
+    });
+
+    const userIdsInSameLocation = usersInSameLocation.map((user) => user.id);
+
+    return this.getScheduledTrips(
+      userIdsInSameLocation,
+      null, // No driver filtering
+      "No trips have been scheduled from your location.",
+      "scheduled trip(s) from your location"
+    );
+  }
+
+  async getAllScheduledTrips(): Promise<ScheduledTripsResponseDto> {
+    return this.getScheduledTrips(
+      null, // No user filtering - get all scheduled trips
+      null, // No driver filtering
+      "No trips have been scheduled.",
+      "scheduled trip(s)"
+    );
+  }
+
+  async getAllScheduledTripsForDriver(
+    driverId: string
+  ): Promise<ScheduledTripsResponseDto> {
+    return this.getScheduledTrips(
+      null, // No user filtering - get all scheduled trips for this driver
+      driverId, // Filter by driver
+      "No trips have been scheduled for this driver.",
+      "scheduled trip(s) for this driver"
+    );
+  }
+
+  async getAllMyScheduledTrips(
+    loggedInUser: JwtPayload
+  ): Promise<ScheduledTripsResponseDto> {
+    return this.getAllScheduledTripsForDriver(loggedInUser.id);
+  }
+
+  async cancelTrip(
+    tripId: number,
+    loggedInUser: JwtPayload
+  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+    // Find the trip to validate it exists and check its status
+    const trip = await this.tripRepository.findOne({
+      where: { id: tripId },
+      relations: {
+        creator: {
+          baseLocation: true,
+        },
+      },
+    });
+
+    if (!trip) {
+      throw new BadRequestException(`Trip with ID '${tripId}' not found.`);
+    }
+
+    // Check if trip is in SCHEDULED status
+    if (trip.status !== TripStatus.SCHEDULED) {
+      throw new BadRequestException(
+        `Only trips in SCHEDULED status can be cancelled. Current status: ${trip.status}`
+      );
+    }
+
+    // Check if the logged-in user is from the same location as the trip creator
+    if (loggedInUser.baseLocationId !== trip.creator.baseLocationId) {
+      throw new BadRequestException(
+        `Only users from the same location as the trip creator can cancel this trip. Trip creator location: ${
+          trip.creator.baseLocation?.name || "Unknown"
+        }, Your location: ${loggedInUser.baseLocationId}`
+      );
+    }
+
+    // Start transaction to ensure atomicity
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Update trip status to CANCELLED
+      await queryRunner.manager.update(
+        Trip,
+        { id: tripId },
+        { status: TripStatus.CANCELLED }
+      );
+
+      // Find all documents associated with this trip
+      const associatedDocs = await queryRunner.manager.find(Doc, {
+        where: { tripId: tripId },
+      });
+
+      // Update all associated documents back to READY_FOR_DISPATCH status and remove trip association
+      if (associatedDocs.length > 0) {
+        await queryRunner.manager.update(
+          Doc,
+          { tripId: tripId },
+          {
+            status: DocStatus.READY_FOR_DISPATCH,
+            tripId: null,
+          }
+        );
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: `Trip ${tripId} has been cancelled successfully. ${associatedDocs.length} document(s) have been moved back to READY_FOR_DISPATCH status.`,
+        statusCode: 200,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(`Failed to cancel trip: ${error.message}`);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  private async getScheduledTrips(
+    userIds: string[] | null,
+    driverId: string | null,
+    noTripsMessage: string,
+    foundTripsMessage: string
+  ): Promise<ScheduledTripsResponseDto> {
+    // Build the where condition
+    const whereCondition: any = {
+      status: TripStatus.SCHEDULED,
+    };
+
+    // Add user filtering if userIds is provided
+    if (userIds && userIds.length > 0) {
+      whereCondition.createdBy = In(userIds);
+    }
+
+    // Add driver filtering if driverId is provided
+    if (driverId) {
+      whereCondition.drivenBy = driverId;
+    }
+
+    // Find scheduled trips
+    const scheduledTrips = await this.tripRepository.find({
+      where: whereCondition,
+      relations: {
+        creator: {
+          baseLocation: true,
+        },
+        driver: {
+          baseLocation: true,
+        },
+      },
+      order: {
+        createdAt: "DESC",
+      },
+    });
+
+    // Transform the trips to include relevant information
+    const tripsWithDetails: TripOutputDto[] = scheduledTrips.map((trip) => ({
+      tripId: trip.id,
+      createdBy: trip.creator.personName,
+      createdById: trip.createdBy,
+      driverName: trip.driver.personName,
+      driverId: trip.drivenBy,
+      vehicleNumber: trip.vehicleNbr,
+      status: trip.status,
+      createdAt: trip.createdAt,
+      lastUpdatedAt: trip.lastUpdatedAt,
+      creatorLocation: trip.creator.baseLocation?.name || "",
+      driverLocation: trip.driver.baseLocation?.name || "",
+    }));
+
+    const message =
+      tripsWithDetails.length === 0
+        ? noTripsMessage
+        : `Found ${tripsWithDetails.length} ${foundTripsMessage}.`;
+
+    const response: ScheduledTripsResponseDto = {
+      success: true,
+      message: message,
+      trips: tripsWithDetails,
+      totalTrips: tripsWithDetails.length,
+      statusCode: 200,
+    };
+
+    return response;
   }
 
   private async getUsersByIds(userIds: string[]) {
