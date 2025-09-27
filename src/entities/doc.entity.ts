@@ -1,4 +1,5 @@
 import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import { Customer } from "./customer.entity";
 
 @Entity("doc")
 export class Doc {
@@ -46,4 +47,8 @@ export class Doc {
     default: () => "NOW()",
   })
   lastUpdatedAt: Date;
+
+  @ManyToOne(() => Customer)
+  @JoinColumn({ name: "customer_id" })
+  customer: Customer;
 }

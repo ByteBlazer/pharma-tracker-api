@@ -11,6 +11,7 @@ import {
 import { TripService } from "../services/trip.service";
 import { CreateTripDto } from "../dto/create-trip.dto";
 import { ScheduledTripsResponseDto } from "../dto/scheduled-trips-response.dto";
+import { TripDetailsOutputDto } from "../dto/trip-details-output.dto";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { RequireRoles } from "../decorators/require-roles.decorator";
 import { LoggedInUser } from "../decorators/logged-in-user.decorator";
@@ -73,5 +74,60 @@ export class TripController {
       throw new BadRequestException("Invalid trip ID. Must be a number.");
     }
     return await this.tripService.cancelTrip(tripIdNumber, loggedInUser);
+  }
+
+  @Post("start/:tripId")
+  async startTrip(
+    @Param("tripId") tripId: string,
+    @LoggedInUser() loggedInUser: JwtPayload
+  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+    const tripIdNumber = parseInt(tripId, 10);
+    if (isNaN(tripIdNumber)) {
+      throw new BadRequestException("Invalid trip ID. Must be a number.");
+    }
+    return await this.tripService.startTrip(tripIdNumber, loggedInUser);
+  }
+
+  @Post("end/:tripId")
+  async endTrip(
+    @Param("tripId") tripId: string,
+    @LoggedInUser() loggedInUser: JwtPayload
+  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+    const tripIdNumber = parseInt(tripId, 10);
+    if (isNaN(tripIdNumber)) {
+      throw new BadRequestException("Invalid trip ID. Must be a number.");
+    }
+    return await this.tripService.endTrip(tripIdNumber, loggedInUser);
+  }
+
+  @Post("drop-off-lot/:tripId/:lotHeading")
+  async dropOffLot(
+    @Param("tripId") tripId: string,
+    @Param("lotHeading") lotHeading: string,
+    @LoggedInUser() loggedInUser: JwtPayload
+  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+    const tripIdNumber = parseInt(tripId, 10);
+    if (isNaN(tripIdNumber)) {
+      throw new BadRequestException("Invalid trip ID. Must be a number.");
+    }
+    if (!lotHeading || lotHeading.trim() === "") {
+      throw new BadRequestException("Lot heading is required.");
+    }
+    return await this.tripService.dropOffLot(
+      tripIdNumber,
+      lotHeading.trim(),
+      loggedInUser
+    );
+  }
+
+  @Get(":tripId")
+  async getTripDetails(
+    @Param("tripId") tripId: string
+  ): Promise<TripDetailsOutputDto> {
+    const tripIdNumber = parseInt(tripId, 10);
+    if (isNaN(tripIdNumber)) {
+      throw new BadRequestException("Invalid trip ID. Must be a number.");
+    }
+    return await this.tripService.getTripDetails(tripIdNumber);
   }
 }

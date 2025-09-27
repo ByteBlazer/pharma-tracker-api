@@ -13,6 +13,9 @@ export class GlobalConstants {
 
   static readonly NUM_BARCODES_IN_PDF = 12;
 
+  // Document grouping constants
+  static readonly DIRECT_DELIVERIES_GROUP_HEADING = "Direct Deliveries";
+
   // Customer data with cities, pincodes, and routes (100 customers)
   static readonly CUSTOMERS = [
     // Route 1 - Ernakulam

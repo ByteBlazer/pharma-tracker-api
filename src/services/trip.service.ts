@@ -1,18 +1,24 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource, In } from "typeorm";
+import { Repository, DataSource, In, MoreThanOrEqual, Not } from "typeorm";
 import { Trip } from "../entities/trip.entity";
 import { Doc } from "../entities/doc.entity";
 import { AppUser } from "../entities/app-user.entity";
 import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
+import { Customer } from "../entities/customer.entity";
+import { LocationHeartbeat } from "../entities/location-heartbeat.entity";
 import { CreateTripDto } from "../dto/create-trip.dto";
 import { TripOutputDto } from "../dto/trip-output.dto";
 import { ScheduledTripsResponseDto } from "../dto/scheduled-trips-response.dto";
+import { TripDetailsOutputDto } from "../dto/trip-details-output.dto";
+import { DocGroupOutputDto } from "../dto/doc-group-output.dto";
+import { DocOutputDto } from "../dto/doc-output.dto";
 import { TripStatus } from "../enums/trip-status.enum";
 import { DocStatus } from "../enums/doc-status.enum";
 import { UserRole } from "../enums/user-role.enum";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { AvailableDriver } from "../interfaces/available-driver.interface";
+import { GlobalConstants } from "../GlobalConstants";
 
 @Injectable()
 export class TripService {
@@ -25,6 +31,10 @@ export class TripService {
     private appUserRepository: Repository<AppUser>,
     @InjectRepository(AppUserXUserRole)
     private appUserXUserRoleRepository: Repository<AppUserXUserRole>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
+    @InjectRepository(LocationHeartbeat)
+    private locationHeartbeatRepository: Repository<LocationHeartbeat>,
     private dataSource: DataSource
   ) {}
 
@@ -313,6 +323,448 @@ export class TripService {
     }
   }
 
+  async startTrip(
+    tripId: number,
+    loggedInUser: JwtPayload
+  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+    // Find the trip to validate it exists and check its status
+    const trip = await this.tripRepository.findOne({
+      where: { id: tripId },
+    });
+
+    if (!trip) {
+      throw new BadRequestException(`Trip with ID '${tripId}' not found.`);
+    }
+
+    // Check if trip is in SCHEDULED status
+    if (trip.status !== TripStatus.SCHEDULED) {
+      throw new BadRequestException(
+        `Only trips in SCHEDULED status can be started. Current status: ${trip.status}`
+      );
+    }
+
+    // Check if the logged-in user is the assigned driver
+    if (loggedInUser.id !== trip.drivenBy) {
+      throw new BadRequestException(
+        `Only the assigned driver can start this trip. Assigned driver: ${trip.drivenBy}, Your ID: ${loggedInUser.id}`
+      );
+    }
+
+    // Check if driver has any other trips in STARTED status
+    const existingStartedTrip = await this.tripRepository.findOne({
+      where: {
+        drivenBy: loggedInUser.id,
+        status: TripStatus.STARTED,
+        id: Not(tripId), // Exclude the current trip
+      },
+    });
+
+    if (existingStartedTrip) {
+      throw new BadRequestException(
+        `Cannot start trip ${tripId}.
+        You already have another trip (ID: ${existingStartedTrip.id}) in STARTED status for which you are the driver.
+        Please end the current trip before starting a new one.`
+      );
+    }
+
+    // Check if trip has at least one associated document
+    const associatedDocs = await this.docRepository.find({
+      where: { tripId: tripId },
+    });
+
+    if (associatedDocs.length === 0) {
+      throw new BadRequestException(
+        `Trip ${tripId} has no associated documents. A trip must have at least one document to be started.`
+      );
+    }
+
+    // Start transaction to ensure atomicity
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Update trip status to STARTED
+      await queryRunner.manager.update(
+        Trip,
+        { id: tripId },
+        { status: TripStatus.STARTED }
+      );
+
+      // Update all associated documents to ON_TRIP status
+      await queryRunner.manager.update(
+        Doc,
+        { tripId: tripId },
+        { status: DocStatus.ON_TRIP }
+      );
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: `Trip ${tripId} has been started successfully. ${associatedDocs.length} document(s) are now ON_TRIP.`,
+        statusCode: 200,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(`Failed to start trip: ${error.message}`);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async getTripDetails(tripId: number): Promise<TripDetailsOutputDto> {
+    // Find the trip with all relations
+    const trip = await this.tripRepository.findOne({
+      where: { id: tripId },
+      relations: {
+        creator: {
+          baseLocation: true,
+        },
+        driver: {
+          baseLocation: true,
+        },
+      },
+    });
+
+    if (!trip) {
+      throw new BadRequestException(`Trip with ID '${tripId}' not found.`);
+    }
+
+    // Get all documents associated with this trip with customer information
+    const docs = await this.docRepository.find({
+      where: { tripId: tripId },
+      relations: { customer: true },
+      order: { lot: "ASC", id: "ASC" },
+    });
+
+    // Get driver's recent location (within last 1 hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const driverLocation = await this.locationHeartbeatRepository.findOne({
+      where: {
+        appUserId: trip.drivenBy,
+        receivedAt: MoreThanOrEqual(oneHourAgo),
+      },
+      order: { receivedAt: "DESC" },
+    });
+
+    // Group documents by lot with distance sorting
+    const docGroups = this.groupDocumentsByLot(docs, driverLocation);
+
+    // Create the base trip details using shared method
+    const baseTripDetails = await this.populateTripOutputDto(trip);
+
+    // Create the trip details response with document groups
+    const tripDetails: TripDetailsOutputDto = {
+      ...baseTripDetails,
+      docGroups: docGroups,
+    };
+
+    return tripDetails;
+  }
+
+  private groupDocumentsByLot(
+    docs: Doc[],
+    driverLocation?: LocationHeartbeat
+  ): DocGroupOutputDto[] {
+    const groupedDocs = new Map<string, Doc[]>();
+
+    // Group documents by lot
+    docs.forEach((doc) => {
+      const lotKey = doc.lot || GlobalConstants.DIRECT_DELIVERIES_GROUP_HEADING;
+      if (!groupedDocs.has(lotKey)) {
+        groupedDocs.set(lotKey, []);
+      }
+      groupedDocs.get(lotKey)!.push(doc);
+    });
+
+    // Convert to DocGroupOutputDto array
+    const docGroups: DocGroupOutputDto[] = Array.from(
+      groupedDocs.entries()
+    ).map(([lot, docsInGroup]) => {
+      const isDirectDelivery =
+        lot === GlobalConstants.DIRECT_DELIVERIES_GROUP_HEADING;
+
+      // Sort documents within the group by distance if driver location is available
+      const sortedDocs = this.sortDocsByDistance(docsInGroup, driverLocation);
+
+      // Calculate dropOffCompleted for lot groups
+      let dropOffCompleted = false;
+      if (!isDirectDelivery) {
+        // For lot groups, check if all docs are in AT_TRANSIT_HUB status
+        dropOffCompleted = docsInGroup.every(
+          (doc) => doc.status === DocStatus.AT_TRANSIT_HUB
+        );
+      }
+      // For Direct Deliveries, dropOffCompleted is always false
+
+      // Calculate showDropOffButton
+      let showDropOffButton = false;
+      if (!isDirectDelivery && !dropOffCompleted) {
+        // For lot groups, show button if not completed
+        showDropOffButton = true;
+      }
+
+      return {
+        heading: lot,
+        droppable: !isDirectDelivery, // true for lot groups, false for direct deliveries
+        dropOffCompleted: dropOffCompleted,
+        showDropOffButton: showDropOffButton,
+        expandGroupByDefault: isDirectDelivery, // true for direct deliveries, false for lot groups
+        docs: sortedDocs.map(
+          (doc): DocOutputDto => ({
+            id: doc.id,
+            status: doc.status,
+            lastScannedBy: doc.lastScannedBy,
+            originWarehouse: doc.originWarehouse,
+            tripId: doc.tripId,
+            docDate: doc.docDate,
+            docAmount: doc.docAmount,
+            route: doc.route,
+            lot: doc.lot,
+            customerId: doc.customerId,
+            createdAt: doc.createdAt,
+            lastUpdatedAt: doc.lastUpdatedAt,
+            // Customer fields
+            customerFirmName: doc.customer?.firmName || "",
+            customerAddress: doc.customer?.address || "",
+            customerCity: doc.customer?.city || "",
+            customerPincode: doc.customer?.pincode || "",
+            customerPhone: doc.customer?.phone || "",
+            customerGeoLatitude: doc.customer?.geoLatitude || "",
+            customerGeoLongitude: doc.customer?.geoLongitude || "",
+          })
+        ),
+      };
+    });
+
+    // Sort groups: lot groups alphabetically first, then Direct Deliveries last
+    docGroups.sort((a, b) => {
+      if (a.heading === GlobalConstants.DIRECT_DELIVERIES_GROUP_HEADING)
+        return 1;
+      if (b.heading === GlobalConstants.DIRECT_DELIVERIES_GROUP_HEADING)
+        return -1;
+      return a.heading.localeCompare(b.heading);
+    });
+
+    return docGroups;
+  }
+
+  private sortDocsByDistance(
+    docs: Doc[],
+    driverLocation?: LocationHeartbeat
+  ): Doc[] {
+    // If no driver location available, return docs as-is
+    if (!driverLocation) {
+      return docs;
+    }
+
+    // Parse driver location
+    const driverLat = parseFloat(driverLocation.geoLatitude);
+    const driverLng = parseFloat(driverLocation.geoLongitude);
+
+    // If driver location is invalid, return docs as-is
+    if (isNaN(driverLat) || isNaN(driverLng)) {
+      return docs;
+    }
+
+    // Sort docs by distance, putting docs without customer location at the end
+    return docs.sort((a, b) => {
+      const aHasLocation = a.customer?.geoLatitude && a.customer?.geoLongitude;
+      const bHasLocation = b.customer?.geoLatitude && b.customer?.geoLongitude;
+
+      // If both have location data, sort by distance
+      if (aHasLocation && bHasLocation) {
+        const aLat = parseFloat(a.customer!.geoLatitude!);
+        const aLng = parseFloat(a.customer!.geoLongitude!);
+        const bLat = parseFloat(b.customer!.geoLatitude!);
+        const bLng = parseFloat(b.customer!.geoLongitude!);
+
+        if (!isNaN(aLat) && !isNaN(aLng) && !isNaN(bLat) && !isNaN(bLng)) {
+          const distanceA = this.calculateDistance(
+            driverLat,
+            driverLng,
+            aLat,
+            aLng
+          );
+          const distanceB = this.calculateDistance(
+            driverLat,
+            driverLng,
+            bLat,
+            bLng
+          );
+          return distanceA - distanceB;
+        }
+      }
+
+      // If only one has location data, put the one without location at the end
+      if (aHasLocation && !bHasLocation) return -1;
+      if (!aHasLocation && bHasLocation) return 1;
+
+      // If neither has location data, maintain original order
+      return 0;
+    });
+  }
+
+  private calculateDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+  ): number {
+    // Haversine formula to calculate distance between two points
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLng = this.toRadians(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) *
+        Math.cos(this.toRadians(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in kilometers
+  }
+
+  private toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
+  }
+
+  async endTrip(
+    tripId: number,
+    loggedInUser: JwtPayload
+  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+    // Find the trip to validate it exists and check its status
+    const trip = await this.tripRepository.findOne({
+      where: { id: tripId },
+    });
+
+    if (!trip) {
+      throw new BadRequestException(`Trip with ID '${tripId}' not found.`);
+    }
+
+    // Check if trip is in STARTED status
+    if (trip.status !== TripStatus.STARTED) {
+      throw new BadRequestException(
+        `Only trips in STARTED status can be ended. Current status: ${trip.status}`
+      );
+    }
+
+    // Check if the logged-in user is the assigned driver
+    if (loggedInUser.id !== trip.drivenBy) {
+      throw new BadRequestException(
+        `Only the assigned driver can end this trip. Assigned driver: ${trip.drivenBy}, Your ID: ${loggedInUser.id}`
+      );
+    }
+
+    // Start transaction to ensure atomicity
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Update trip status to ENDED
+      await queryRunner.manager.update(
+        Trip,
+        { id: tripId },
+        { status: TripStatus.ENDED }
+      );
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: `Trip ${tripId} has been successfully ended.`,
+        statusCode: 200,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(`Failed to end trip: ${error.message}`);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async dropOffLot(
+    tripId: number,
+    lotHeading: string,
+    loggedInUser: JwtPayload
+  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+    // Find the trip to validate it exists and check its status
+    const trip = await this.tripRepository.findOne({
+      where: { id: tripId },
+    });
+
+    if (!trip) {
+      throw new BadRequestException(`Trip with ID '${tripId}' not found.`);
+    }
+
+    // Check if trip is in STARTED status
+    if (trip.status !== TripStatus.STARTED) {
+      throw new BadRequestException(
+        `Only trips in STARTED status can drop off lots. Current status: ${trip.status}`
+      );
+    }
+
+    // Check if the logged-in user is the assigned driver
+    if (loggedInUser.id !== trip.drivenBy) {
+      throw new BadRequestException(
+        `Only the assigned driver can drop off lots for this trip. Assigned driver: ${trip.drivenBy}, Your ID: ${loggedInUser.id}`
+      );
+    }
+
+    // Validate that the lot heading is not "Direct Deliveries"
+    if (lotHeading === GlobalConstants.DIRECT_DELIVERIES_GROUP_HEADING) {
+      throw new BadRequestException(
+        `Cannot drop off '${lotHeading}' group. Direct deliveries must be delivered individually.`
+      );
+    }
+
+    // Find all documents in the trip with the specified lot heading
+    const docsToUpdate = await this.docRepository.find({
+      where: {
+        tripId: tripId,
+        lot: lotHeading,
+      },
+    });
+
+    if (docsToUpdate.length === 0) {
+      throw new BadRequestException(
+        `No documents found with lot heading '${lotHeading}' in trip ${tripId}.`
+      );
+    }
+
+    // Start transaction to ensure atomicity
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Update all documents with the specified lot to AT_TRANSIT_HUB status
+      await queryRunner.manager.update(
+        Doc,
+        {
+          tripId: tripId,
+          lot: lotHeading,
+        },
+        { status: DocStatus.AT_TRANSIT_HUB }
+      );
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: `Successfully dropped off ${docsToUpdate.length} document(s) from lot '${lotHeading}' at transit hub.`,
+        statusCode: 200,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(`Failed to drop off lot: ${error.message}`);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   private async getScheduledTrips(
     userIds: string[] | null,
     driverId: string | null,
@@ -350,30 +802,9 @@ export class TripService {
       },
     });
 
-    // Get route information for each trip from associated documents
+    // Populate trip details using shared method
     const tripsWithDetails: TripOutputDto[] = await Promise.all(
-      scheduledTrips.map(async (trip) => {
-        // Get route from one of the associated documents
-        const associatedDoc = await this.docRepository.findOne({
-          where: { tripId: trip.id },
-          select: { route: true },
-        });
-
-        return {
-          tripId: trip.id,
-          createdBy: trip.creator.personName,
-          createdById: trip.createdBy,
-          driverName: trip.driver.personName,
-          driverId: trip.drivenBy,
-          vehicleNumber: trip.vehicleNbr,
-          status: trip.status,
-          route: associatedDoc?.route || "",
-          createdAt: trip.createdAt,
-          lastUpdatedAt: trip.lastUpdatedAt,
-          creatorLocation: trip.creator.baseLocation?.name || "",
-          driverLocation: trip.driver.baseLocation?.name || "",
-        };
-      })
+      scheduledTrips.map((trip) => this.populateTripOutputDto(trip))
     );
 
     const message =
@@ -390,6 +821,29 @@ export class TripService {
     };
 
     return response;
+  }
+
+  private async populateTripOutputDto(trip: Trip): Promise<TripOutputDto> {
+    // Get route from one of the associated documents
+    const associatedDoc = await this.docRepository.findOne({
+      where: { tripId: trip.id },
+      select: { route: true },
+    });
+
+    return {
+      tripId: trip.id,
+      createdBy: trip.creator.personName,
+      createdById: trip.createdBy,
+      driverName: trip.driver.personName,
+      driverId: trip.drivenBy,
+      vehicleNumber: trip.vehicleNbr,
+      status: trip.status,
+      route: associatedDoc?.route || "",
+      createdAt: trip.createdAt,
+      lastUpdatedAt: trip.lastUpdatedAt,
+      creatorLocation: trip.creator.baseLocation?.name || "",
+      driverLocation: trip.driver.baseLocation?.name || "",
+    };
   }
 
   private async getUsersByIds(userIds: string[]) {
