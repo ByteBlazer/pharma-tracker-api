@@ -823,6 +823,52 @@ export class TripService {
     return response;
   }
 
+  async getMyTrips(
+    loggedInUser: JwtPayload
+  ): Promise<ScheduledTripsResponseDto> {
+    // Build the where condition for SCHEDULED or STARTED trips
+    const whereCondition: any = {
+      drivenBy: loggedInUser.id,
+      status: In([TripStatus.SCHEDULED, TripStatus.STARTED]),
+    };
+
+    // Find trips with SCHEDULED or STARTED status for the driver
+    const trips = await this.tripRepository.find({
+      where: whereCondition,
+      relations: {
+        creator: {
+          baseLocation: true,
+        },
+        driver: {
+          baseLocation: true,
+        },
+      },
+      order: {
+        createdAt: "DESC",
+      },
+    });
+
+    // Populate trip details using shared method
+    const tripsWithDetails: TripOutputDto[] = await Promise.all(
+      trips.map((trip) => this.populateTripOutputDto(trip))
+    );
+
+    const message =
+      tripsWithDetails.length === 0
+        ? "No trips found for you."
+        : `Found ${tripsWithDetails.length} trip(s) found for you.`;
+
+    const response: ScheduledTripsResponseDto = {
+      success: true,
+      message: message,
+      trips: tripsWithDetails,
+      totalTrips: tripsWithDetails.length,
+      statusCode: 200,
+    };
+
+    return response;
+  }
+
   private async populateTripOutputDto(trip: Trip): Promise<TripOutputDto> {
     // Get route from one of the associated documents
     const associatedDoc = await this.docRepository.findOne({
