@@ -64,6 +64,13 @@ export class TripController {
     return await this.tripService.getAllMyScheduledTrips(loggedInUser);
   }
 
+  @Get("my-trips")
+  async getMyTrips(
+    @LoggedInUser() loggedInUser: JwtPayload
+  ): Promise<ScheduledTripsResponseDto> {
+    return await this.tripService.getMyTrips(loggedInUser);
+  }
+
   @Post("cancel/:tripId")
   async cancelTrip(
     @Param("tripId") tripId: string,
