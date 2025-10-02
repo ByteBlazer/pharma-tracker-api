@@ -9,8 +9,14 @@ async function bootstrap() {
   // Set global API prefix
   app.setGlobalPrefix("api");
 
-  // Enable CORS
-  app.enableCors();
+  // Enable CORS only in local environment
+
+  if (process.platform === "win32") {
+    app.enableCors();
+    console.log(
+      "🌐 CORS enabled as we are on Windows,and hence local development"
+    );
+  }
 
   // Global validation pipe
   app.useGlobalPipes(
