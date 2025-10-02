@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { SettingOutputDto } from "../dto/setting-output.dto";
 import { UpdateSettingDto } from "../dto/update-setting.dto";
 import { Setting } from "../entities/setting.entity";
 import { SettingEnum } from "../enums/setting.enum";
@@ -17,6 +18,22 @@ export class SettingService {
     private readonly settingRepository: Repository<Setting>,
     private readonly settingsCacheService: SettingsCacheService
   ) {}
+
+  async getSetting(settingName: string): Promise<SettingOutputDto> {
+    // Check if setting exists
+    const setting = await this.settingRepository.findOne({
+      where: { settingName },
+    });
+
+    if (!setting) {
+      throw new NotFoundException(`Setting '${settingName}' not found`);
+    }
+
+    return {
+      settingName: setting.settingName,
+      settingValue: setting.settingValue,
+    };
+  }
 
   async updateSetting(updateSettingDto: UpdateSettingDto): Promise<{
     success: boolean;
