@@ -1,11 +1,13 @@
 import {
-    BadRequestException,
-    Body,
-    Controller,
-    HttpStatus,
-    NotFoundException,
-    Put,
-    Res,
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Put,
+  Res,
 } from "@nestjs/common";
 import { Response } from "express";
 import { RequireRoles } from "../decorators/require-roles.decorator";
@@ -17,8 +19,35 @@ import { SettingService } from "../services/setting.service";
 export class SettingController {
   constructor(private readonly settingService: SettingService) {}
 
+  @Get(":settingName")
+  @RequireRoles(UserRole.WEB_ACCESS, UserRole.APP_ADMIN)
+  async getSetting(
+    @Param("settingName") settingName: string,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      const result = await this.settingService.getSetting(settingName);
+      res.status(HttpStatus.OK).json(result);
+    } catch (error) {
+      console.log("Error getting setting:", error);
+      if (error instanceof NotFoundException) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: error.message,
+          settingName: settingName,
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Failed to get setting",
+          settingName: settingName,
+        });
+      }
+    }
+  }
+
   @Put("")
-  @RequireRoles(UserRole.APP_ADMIN)
+  @RequireRoles(UserRole.WEB_ACCESS)
   async updateSetting(
     @Body() updateSettingDto: UpdateSettingDto,
     @Res() res: Response
