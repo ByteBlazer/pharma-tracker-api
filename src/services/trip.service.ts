@@ -227,6 +227,59 @@ export class TripService {
     );
   }
 
+  async getAllTrips(): Promise<ScheduledTripsResponseDto> {
+    // Calculate 48 hours ago for ENDED trips filter
+    const fortyEightHoursAgo = new Date();
+    fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
+
+    // Find trips with SCHEDULED, STARTED, or ENDED (within last 48 hours) status
+    const allTrips = await this.tripRepository.find({
+      where: [
+        {
+          status: TripStatus.SCHEDULED,
+        },
+        {
+          status: TripStatus.STARTED,
+        },
+        {
+          status: TripStatus.ENDED,
+          lastUpdatedAt: MoreThanOrEqual(fortyEightHoursAgo),
+        },
+      ],
+      relations: {
+        creator: {
+          baseLocation: true,
+        },
+        driver: {
+          baseLocation: true,
+        },
+      },
+      order: {
+        lastUpdatedAt: "DESC",
+      },
+    });
+
+    // Populate trip details using shared method
+    const tripsWithDetails: TripOutputDto[] = await Promise.all(
+      allTrips.map((trip) => this.populateTripOutputDto(trip))
+    );
+
+    const message =
+      tripsWithDetails.length === 0
+        ? "No trips found."
+        : `Found ${tripsWithDetails.length} trip(s) (scheduled, started, or ended within last 48 hours).`;
+
+    const response: ScheduledTripsResponseDto = {
+      success: true,
+      message: message,
+      trips: tripsWithDetails,
+      totalTrips: tripsWithDetails.length,
+      statusCode: 200,
+    };
+
+    return response;
+  }
+
   async getAllScheduledTripsForDriver(
     driverId: string
   ): Promise<ScheduledTripsResponseDto> {
@@ -1003,6 +1056,16 @@ export class TripService {
       select: { route: true },
     });
 
+    // Get driver's last known location (within last 24 hours)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const driverLastLocation = await this.locationHeartbeatRepository.findOne({
+      where: {
+        appUserId: trip.drivenBy,
+        receivedAt: MoreThanOrEqual(twentyFourHoursAgo),
+      },
+      order: { receivedAt: "DESC" },
+    });
+
     return {
       tripId: trip.id,
       createdBy: trip.creator.personName,
@@ -1016,6 +1079,10 @@ export class TripService {
       lastUpdatedAt: trip.lastUpdatedAt,
       creatorLocation: trip.creator.baseLocation?.name || "",
       driverLocation: trip.driver.baseLocation?.name || "",
+      // Driver's last known location
+      driverLastKnownLatitude: driverLastLocation?.geoLatitude || "",
+      driverLastKnownLongitude: driverLastLocation?.geoLongitude || "",
+      driverLastLocationUpdateTime: driverLastLocation?.receivedAt || null,
     };
   }
 

@@ -51,6 +51,12 @@ export class TripController {
     return await this.tripService.getAllScheduledTrips();
   }
 
+  @Get("all-trips")
+  @RequireRoles(UserRole.WEB_ACCESS)
+  async getAllTrips(): Promise<ScheduledTripsResponseDto> {
+    return await this.tripService.getAllTrips();
+  }
+
   @Get("scheduled-trips/driver/:driverId")
   async getAllScheduledTripsForDriver(
     @Param("driverId") driverId: string
