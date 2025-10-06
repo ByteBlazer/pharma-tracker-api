@@ -11,4 +11,8 @@ export class TripOutputDto {
   lastUpdatedAt: Date;
   creatorLocation: string;
   driverLocation: string;
+  // Driver's last known location
+  driverLastKnownLatitude: string;
+  driverLastKnownLongitude: string;
+  driverLastLocationUpdateTime: Date;
 }

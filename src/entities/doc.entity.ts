@@ -35,6 +35,9 @@ export class Doc {
   @Column({ name: "lot", type: "varchar", length: 100, nullable: true })
   lot: string;
 
+  @Column({ name: "comment", type: "varchar", length: 100, nullable: true })
+  comment: string;
+
   @Column({ name: "customer_id", type: "varchar", length: 50 })
   customerId: string;
 

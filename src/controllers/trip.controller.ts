@@ -16,6 +16,7 @@ import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { RequireRoles } from "../decorators/require-roles.decorator";
 import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { UserRole } from "../enums/user-role.enum";
 
 @Controller("trip")
 @UseGuards(JwtAuthGuard)
@@ -48,6 +49,12 @@ export class TripController {
   @Get("scheduled-trips")
   async getAllScheduledTrips(): Promise<ScheduledTripsResponseDto> {
     return await this.tripService.getAllScheduledTrips();
+  }
+
+  @Get("all-trips")
+  @RequireRoles(UserRole.WEB_ACCESS)
+  async getAllTrips(): Promise<ScheduledTripsResponseDto> {
+    return await this.tripService.getAllTrips();
   }
 
   @Get("scheduled-trips/driver/:driverId")
@@ -99,12 +106,35 @@ export class TripController {
   async endTrip(
     @Param("tripId") tripId: string,
     @LoggedInUser() loggedInUser: JwtPayload
-  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    statusCode: number;
+    pendingDocsCount?: number;
+  }> {
     const tripIdNumber = parseInt(tripId, 10);
     if (isNaN(tripIdNumber)) {
       throw new BadRequestException("Invalid trip ID. Must be a number.");
     }
     return await this.tripService.endTrip(tripIdNumber, loggedInUser);
+  }
+
+  @Post("force-end/:tripId")
+  @RequireRoles(UserRole.WEB_ACCESS, UserRole.APP_ADMIN)
+  async forceEndTrip(
+    @Param("tripId") tripId: string,
+    @LoggedInUser() loggedInUser: JwtPayload
+  ): Promise<{
+    success: boolean;
+    message: string;
+    statusCode: number;
+    markedUndeliveredCount: number;
+  }> {
+    const tripIdNumber = parseInt(tripId, 10);
+    if (isNaN(tripIdNumber)) {
+      throw new BadRequestException("Invalid trip ID. Must be a number.");
+    }
+    return await this.tripService.forceEndTrip(tripIdNumber, loggedInUser);
   }
 
   @Post("drop-off-lot/:tripId/:lotHeading")

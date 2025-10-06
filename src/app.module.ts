@@ -16,6 +16,7 @@ import { Customer } from "./entities/customer.entity";
 import { Doc } from "./entities/doc.entity";
 import { LocationHeartbeat } from "./entities/location-heartbeat.entity";
 import { Setting } from "./entities/setting.entity";
+import { Signature } from "./entities/signature.entity";
 import { Trip } from "./entities/trip.entity";
 import { UserRole } from "./entities/user-role.entity";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
@@ -56,6 +57,7 @@ import { TripService } from "./services/trip.service";
         Customer,
         Doc,
         Setting,
+        Signature,
         Trip,
       ],
       autoLoadEntities: false,
@@ -71,6 +73,7 @@ import { TripService } from "./services/trip.service";
       Customer,
       Doc,
       Setting,
+      Signature,
       Trip,
     ]),
     JwtModule.registerAsync({

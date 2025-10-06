@@ -8,6 +8,7 @@ export class DocOutputDto {
   docAmount: number;
   route: string;
   lot: string;
+  comment: string;
   customerId: string;
   createdAt: Date;
   lastUpdatedAt: Date;

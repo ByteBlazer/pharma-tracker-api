@@ -1,4 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
@@ -12,7 +16,10 @@ import { RouteSummary } from "src/interfaces/route-summary.interface";
 import { ScannedUserSummary } from "src/interfaces/scanned-user-summary.interface";
 import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
+import { Signature } from "../entities/signature.entity";
 import { AppUser } from "../entities/app-user.entity";
+import { MarkDeliveryDto } from "../dto/mark-delivery.dto";
+import { MarkDeliveryFailedDto } from "../dto/mark-delivery-failed.dto";
 import { MockDataService } from "./mock-data.service";
 import { SettingsCacheService } from "./settings-cache.service";
 
@@ -24,6 +31,8 @@ export class DocService {
     private readonly customerRepository: Repository<Customer>,
     @InjectRepository(Doc)
     private readonly docRepository: Repository<Doc>,
+    @InjectRepository(Signature)
+    private readonly signatureRepository: Repository<Signature>,
     @InjectRepository(AppUser)
     private readonly appUserRepository: Repository<AppUser>,
     private readonly settingsCacheService: SettingsCacheService,
@@ -622,5 +631,121 @@ export class DocService {
         reject(error);
       }
     });
+  }
+
+  async markDelivery(
+    docId: string,
+    markDeliveryDto: MarkDeliveryDto
+  ): Promise<{
+    success: boolean;
+    message: string;
+    docId: string;
+    statusCode: number;
+  }> {
+    // Check if document exists
+    const existingDoc = await this.docRepository.findOne({
+      where: { id: docId },
+    });
+
+    if (!existingDoc) {
+      throw new NotFoundException(
+        "Document was not scanned and so not in the system yet"
+      );
+    }
+
+    // Validate that signature is provided for successful delivery
+    if (!markDeliveryDto.signature) {
+      throw new BadRequestException(
+        "Signature is required for successful delivery"
+      );
+    }
+
+    // Use transaction for data consistency
+    return await this.dataSource.transaction(async (manager) => {
+      // Mark as delivered
+      await manager.update(Doc, docId, {
+        status: DocStatus.DELIVERED,
+        lastUpdatedAt: new Date(),
+        ...(markDeliveryDto.deliveryComment && {
+          comment: markDeliveryDto.deliveryComment,
+        }),
+      });
+
+      // Save signature
+      const signatureBuffer = Buffer.from(markDeliveryDto.signature, "base64");
+
+      // Check if signature already exists
+      const existingSignature = await manager.findOne(Signature, {
+        where: { docId },
+      });
+
+      if (existingSignature) {
+        // Update existing signature
+        await manager.update(Signature, docId, {
+          signature: signatureBuffer,
+        });
+      } else {
+        // Create new signature
+        const newSignature = manager.create(Signature, {
+          docId,
+          signature: signatureBuffer,
+        });
+        await manager.save(Signature, newSignature);
+      }
+
+      // Update customer coordinates if provided
+      if (
+        markDeliveryDto.deliveryLatitude &&
+        markDeliveryDto.deliveryLongitude
+      ) {
+        await manager.update(Customer, existingDoc.customerId, {
+          geoLatitude: markDeliveryDto.deliveryLatitude.toString(),
+          geoLongitude: markDeliveryDto.deliveryLongitude.toString(),
+          lastUpdatedAt: new Date(),
+        });
+      }
+
+      return {
+        success: true,
+        message: "Document marked as delivered successfully",
+        docId: docId,
+        statusCode: 200,
+      };
+    });
+  }
+
+  async markDeliveryFailed(
+    docId: string,
+    markDeliveryFailedDto: MarkDeliveryFailedDto
+  ): Promise<{
+    success: boolean;
+    message: string;
+    docId: string;
+    statusCode: number;
+  }> {
+    // Check if document exists
+    const existingDoc = await this.docRepository.findOne({
+      where: { id: docId },
+    });
+
+    if (!existingDoc) {
+      throw new NotFoundException(
+        "Document was not scanned and so not in the system yet"
+      );
+    }
+
+    // Mark as undelivered with failure comment
+    await this.docRepository.update(docId, {
+      status: DocStatus.UNDELIVERED,
+      lastUpdatedAt: new Date(),
+      comment: markDeliveryFailedDto.failureComment,
+    });
+
+    return {
+      success: true,
+      message: "Document marked as delivery failed successfully",
+      docId: docId,
+      statusCode: 200,
+    };
   }
 }

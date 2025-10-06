@@ -227,6 +227,59 @@ export class TripService {
     );
   }
 
+  async getAllTrips(): Promise<ScheduledTripsResponseDto> {
+    // Calculate 48 hours ago for ENDED trips filter
+    const fortyEightHoursAgo = new Date();
+    fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
+
+    // Find trips with SCHEDULED, STARTED, or ENDED (within last 48 hours) status
+    const allTrips = await this.tripRepository.find({
+      where: [
+        {
+          status: TripStatus.SCHEDULED,
+        },
+        {
+          status: TripStatus.STARTED,
+        },
+        {
+          status: TripStatus.ENDED,
+          lastUpdatedAt: MoreThanOrEqual(fortyEightHoursAgo),
+        },
+      ],
+      relations: {
+        creator: {
+          baseLocation: true,
+        },
+        driver: {
+          baseLocation: true,
+        },
+      },
+      order: {
+        lastUpdatedAt: "DESC",
+      },
+    });
+
+    // Populate trip details using shared method
+    const tripsWithDetails: TripOutputDto[] = await Promise.all(
+      allTrips.map((trip) => this.populateTripOutputDto(trip))
+    );
+
+    const message =
+      tripsWithDetails.length === 0
+        ? "No trips found."
+        : `Found ${tripsWithDetails.length} trip(s) (scheduled, started, or ended within last 48 hours).`;
+
+    const response: ScheduledTripsResponseDto = {
+      success: true,
+      message: message,
+      trips: tripsWithDetails,
+      totalTrips: tripsWithDetails.length,
+      statusCode: 200,
+    };
+
+    return response;
+  }
+
   async getAllScheduledTripsForDriver(
     driverId: string
   ): Promise<ScheduledTripsResponseDto> {
@@ -522,6 +575,7 @@ export class TripService {
             docAmount: doc.docAmount,
             route: doc.route,
             lot: doc.lot,
+            comment: doc.comment || "",
             customerId: doc.customerId,
             createdAt: doc.createdAt,
             lastUpdatedAt: doc.lastUpdatedAt,
@@ -633,7 +687,12 @@ export class TripService {
   async endTrip(
     tripId: number,
     loggedInUser: JwtPayload
-  ): Promise<{ success: boolean; message: string; statusCode: number }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    statusCode: number;
+    pendingDocsCount?: number;
+  }> {
     // Find the trip to validate it exists and check its status
     const trip = await this.tripRepository.findOne({
       where: { id: tripId },
@@ -654,6 +713,27 @@ export class TripService {
     if (loggedInUser.id !== trip.drivenBy) {
       throw new BadRequestException(
         `Only the assigned driver can end this trip. Assigned driver: ${trip.drivenBy}, Your ID: ${loggedInUser.id}`
+      );
+    }
+
+    // Check all documents in the trip to ensure they are either delivered or undelivered
+    // Exclude documents from lots that have been dropped off (AT_TRANSIT_HUB status)
+    const pendingDocs = await this.docRepository.find({
+      where: {
+        tripId: tripId,
+        status: Not(
+          In([
+            DocStatus.DELIVERED,
+            DocStatus.UNDELIVERED,
+            DocStatus.AT_TRANSIT_HUB,
+          ])
+        ),
+      },
+    });
+
+    if (pendingDocs.length > 0) {
+      throw new BadRequestException(
+        `Cannot end trip. ${pendingDocs.length} document(s) are still pending delivery marking. Please mark all documents as delivered or failed delivery before ending the trip.`
       );
     }
 
@@ -680,6 +760,106 @@ export class TripService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw new BadRequestException(`Failed to end trip: ${error.message}`);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async forceEndTrip(
+    tripId: number,
+    loggedInUser: JwtPayload
+  ): Promise<{
+    success: boolean;
+    message: string;
+    statusCode: number;
+    markedUndeliveredCount: number;
+  }> {
+    // Find the trip to validate it exists and check its status
+    const trip = await this.tripRepository.findOne({
+      where: { id: tripId },
+    });
+
+    if (!trip) {
+      throw new BadRequestException(`Trip with ID '${tripId}' not found.`);
+    }
+
+    // Check if trip is in STARTED status
+    if (trip.status !== TripStatus.STARTED) {
+      throw new BadRequestException(
+        `Only trips in STARTED status can be force ended. Current status: ${trip.status}`
+      );
+    }
+
+    // Get user details for the comment
+    const user = await this.appUserRepository.findOne({
+      where: { id: loggedInUser.id },
+    });
+
+    const userName = user ? user.personName : loggedInUser.id;
+
+    // Find all documents that need to be marked as undelivered
+    // Exclude documents from lots that have been dropped off (AT_TRANSIT_HUB status)
+    const docsToMarkUndelivered = await this.docRepository.find({
+      where: {
+        tripId: tripId,
+        status: Not(
+          In([
+            DocStatus.DELIVERED,
+            DocStatus.UNDELIVERED,
+            DocStatus.AT_TRANSIT_HUB,
+          ])
+        ),
+      },
+    });
+
+    // Start transaction to ensure atomicity
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Mark all remaining documents as undelivered
+      if (docsToMarkUndelivered.length > 0) {
+        await queryRunner.manager.update(
+          Doc,
+          {
+            tripId: tripId,
+            status: Not(
+              In([
+                DocStatus.DELIVERED,
+                DocStatus.UNDELIVERED,
+                DocStatus.AT_TRANSIT_HUB,
+              ])
+            ),
+          },
+          {
+            status: DocStatus.UNDELIVERED,
+            comment: `Trip force ended by user ${userName}`,
+            lastUpdatedAt: new Date(),
+          }
+        );
+      }
+
+      // Update trip status to ENDED
+      await queryRunner.manager.update(
+        Trip,
+        { id: tripId },
+        { status: TripStatus.ENDED }
+      );
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: `Trip ${tripId} has been force ended successfully. ${docsToMarkUndelivered.length} document(s) marked as undelivered.`,
+        statusCode: 200,
+        markedUndeliveredCount: docsToMarkUndelivered.length,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(
+        `Failed to force end trip: ${error.message}`
+      );
     } finally {
       await queryRunner.release();
     }
@@ -876,6 +1056,16 @@ export class TripService {
       select: { route: true },
     });
 
+    // Get driver's last known location (within last 24 hours)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const driverLastLocation = await this.locationHeartbeatRepository.findOne({
+      where: {
+        appUserId: trip.drivenBy,
+        receivedAt: MoreThanOrEqual(twentyFourHoursAgo),
+      },
+      order: { receivedAt: "DESC" },
+    });
+
     return {
       tripId: trip.id,
       createdBy: trip.creator.personName,
@@ -889,6 +1079,10 @@ export class TripService {
       lastUpdatedAt: trip.lastUpdatedAt,
       creatorLocation: trip.creator.baseLocation?.name || "",
       driverLocation: trip.driver.baseLocation?.name || "",
+      // Driver's last known location
+      driverLastKnownLatitude: driverLastLocation?.geoLatitude || "",
+      driverLastKnownLongitude: driverLastLocation?.geoLongitude || "",
+      driverLastLocationUpdateTime: driverLastLocation?.receivedAt || null,
     };
   }
 

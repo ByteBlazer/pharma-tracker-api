@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Delete,
   Get,
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   Res,
 } from "@nestjs/common";
@@ -17,6 +19,8 @@ import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { DocService } from "../services/doc.service";
 import { SkipAuth } from "src/decorators/skip-auth.decorator";
+import { MarkDeliveryDto } from "../dto/mark-delivery.dto";
+import { MarkDeliveryFailedDto } from "../dto/mark-delivery-failed.dto";
 
 @Controller("doc")
 export class DocController {
@@ -176,6 +180,75 @@ export class DocController {
         message: "Failed to purge mock data",
         error: error.message,
       });
+    }
+  }
+
+  @Put("mark-delivery/:docId")
+  @RequireRoles(UserRole.APP_ADMIN, UserRole.APP_TRIP_DRIVER)
+  async markDelivery(
+    @Param("docId") docId: string,
+    @Body() markDeliveryDto: MarkDeliveryDto,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      const result = await this.docService.markDelivery(docId, markDeliveryDto);
+
+      res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        docId: result.docId,
+      });
+    } catch (error) {
+      console.log(error);
+      if (error instanceof Error && error.message.includes("not found")) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: error.message,
+          docId: docId,
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Failed to mark delivery",
+          error: error.message,
+        });
+      }
+    }
+  }
+
+  @Put("mark-delivery-failed/:docId")
+  @RequireRoles(UserRole.APP_ADMIN, UserRole.APP_TRIP_DRIVER)
+  async markDeliveryFailed(
+    @Param("docId") docId: string,
+    @Body() markDeliveryFailedDto: MarkDeliveryFailedDto,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      const result = await this.docService.markDeliveryFailed(
+        docId,
+        markDeliveryFailedDto
+      );
+
+      res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        docId: result.docId,
+      });
+    } catch (error) {
+      console.log(error);
+      if (error instanceof Error && error.message.includes("not found")) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: error.message,
+          docId: docId,
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Failed to mark delivery as failed",
+          error: error.message,
+        });
+      }
     }
   }
 }
