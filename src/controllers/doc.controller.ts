@@ -21,6 +21,7 @@ import { DocService } from "../services/doc.service";
 import { SkipAuth } from "src/decorators/skip-auth.decorator";
 import { MarkDeliveryDto } from "../dto/mark-delivery.dto";
 import { MarkDeliveryFailedDto } from "../dto/mark-delivery-failed.dto";
+import { DocTrackingResponseDto } from "../dto/doc-tracking-response.dto";
 
 @Controller("doc")
 export class DocController {
@@ -246,6 +247,42 @@ export class DocController {
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
           message: "Failed to mark delivery as failed",
+          error: error.message,
+        });
+      }
+    }
+  }
+
+  @Get("tracking")
+  @SkipAuth()
+  @Throttle({ default: { limit: 100, ttl: 1 * 60 * 1000 } }) // 100 requests per minute
+  async trackDocument(
+    @Query("token") token: string,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      const result = await this.docService.trackDocument(token);
+
+      res.status(HttpStatus.OK).json(result);
+    } catch (error) {
+      console.log(error);
+      if (error instanceof Error && error.message.includes("Invalid token")) {
+        res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (
+        error instanceof Error &&
+        error.message.includes("not found")
+      ) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Failed to track document",
           error: error.message,
         });
       }

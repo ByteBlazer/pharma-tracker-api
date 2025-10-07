@@ -18,8 +18,11 @@ import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
 import { Signature } from "../entities/signature.entity";
 import { AppUser } from "../entities/app-user.entity";
+import { Trip } from "../entities/trip.entity";
+import { LocationHeartbeat } from "../entities/location-heartbeat.entity";
 import { MarkDeliveryDto } from "../dto/mark-delivery.dto";
 import { MarkDeliveryFailedDto } from "../dto/mark-delivery-failed.dto";
+import { DocTrackingResponseDto } from "../dto/doc-tracking-response.dto";
 import { MockDataService } from "./mock-data.service";
 import { SettingsCacheService } from "./settings-cache.service";
 
@@ -35,6 +38,10 @@ export class DocService {
     private readonly signatureRepository: Repository<Signature>,
     @InjectRepository(AppUser)
     private readonly appUserRepository: Repository<AppUser>,
+    @InjectRepository(Trip)
+    private readonly tripRepository: Repository<Trip>,
+    @InjectRepository(LocationHeartbeat)
+    private readonly locationHeartbeatRepository: Repository<LocationHeartbeat>,
     private readonly settingsCacheService: SettingsCacheService,
     private dataSource: DataSource
   ) {}
@@ -683,12 +690,14 @@ export class DocService {
         // Update existing signature
         await manager.update(Signature, docId, {
           signature: signatureBuffer,
+          lastUpdatedAt: new Date(),
         });
       } else {
         // Create new signature
         const newSignature = manager.create(Signature, {
           docId,
           signature: signatureBuffer,
+          lastUpdatedAt: new Date(),
         });
         await manager.save(Signature, newSignature);
       }
@@ -747,5 +756,110 @@ export class DocService {
       docId: docId,
       statusCode: 200,
     };
+  }
+
+  async trackDocument(token: string): Promise<DocTrackingResponseDto> {
+    // Decode the base64 token to get docId
+    let docId: string;
+    try {
+      docId = Buffer.from(token, "base64").toString("utf-8");
+    } catch (error) {
+      throw new BadRequestException("Invalid token");
+    }
+
+    // Find the document
+    const doc = await this.docRepository.findOne({
+      where: { id: docId },
+      relations: ["customer"],
+    });
+
+    if (!doc) {
+      throw new BadRequestException("Invalid token");
+    }
+
+    const response: DocTrackingResponseDto = {
+      success: true,
+      message: "Document tracking information retrieved successfully",
+      status: doc.status,
+    };
+
+    // Handle different statuses
+    switch (doc.status) {
+      case DocStatus.READY_FOR_DISPATCH:
+      case DocStatus.TRIP_SCHEDULED:
+        // Just return the status
+        break;
+
+      case DocStatus.DELIVERED:
+        // Return status, comment, and delivery timestamp from signature
+        response.comment = doc.comment;
+
+        const signature = await this.signatureRepository.findOne({
+          where: { docId: docId },
+        });
+
+        if (signature) {
+          response.deliveryTimestamp = signature.lastUpdatedAt;
+        }
+        break;
+
+      case DocStatus.UNDELIVERED:
+        // Return status and comment
+        response.comment = doc.comment;
+        break;
+
+      case DocStatus.ON_TRIP:
+      case DocStatus.AT_TRANSIT_HUB:
+        // Get trip information
+        const trip = await this.tripRepository.findOne({
+          where: { id: doc.tripId },
+        });
+
+        if (trip) {
+          // Check if trip started within last 48 hours
+          const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+          if (trip.createdAt >= fortyEightHoursAgo) {
+            // Add customer location if available
+            if (
+              doc.customer &&
+              doc.customer.geoLatitude &&
+              doc.customer.geoLongitude
+            ) {
+              response.customerLocation = {
+                latitude: doc.customer.geoLatitude,
+                longitude: doc.customer.geoLongitude,
+              };
+            }
+
+            // Get driver's last known location in the last 48 hours
+            const driverLocation =
+              await this.locationHeartbeatRepository.findOne({
+                where: {
+                  appUserId: trip.drivenBy,
+                  receivedAt: MoreThan(fortyEightHoursAgo),
+                },
+                order: {
+                  receivedAt: "DESC",
+                },
+              });
+
+            if (driverLocation) {
+              response.driverLastKnownLocation = {
+                latitude: driverLocation.geoLatitude,
+                longitude: driverLocation.geoLongitude,
+                receivedAt: driverLocation.receivedAt,
+              };
+            }
+          }
+        }
+        break;
+
+      default:
+        // Unknown status, just return the status
+        break;
+    }
+
+    return response;
   }
 }
