@@ -7,4 +7,11 @@ export class Signature {
 
   @Column({ name: "signature", type: "bytea" })
   signature: Buffer;
+
+  @Column({
+    name: "last_updated_at",
+    type: "timestamp",
+    default: () => "NOW()",
+  })
+  lastUpdatedAt: Date;
 }

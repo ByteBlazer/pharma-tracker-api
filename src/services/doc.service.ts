@@ -683,12 +683,14 @@ export class DocService {
         // Update existing signature
         await manager.update(Signature, docId, {
           signature: signatureBuffer,
+          lastUpdatedAt: new Date(),
         });
       } else {
         // Create new signature
         const newSignature = manager.create(Signature, {
           docId,
           signature: signatureBuffer,
+          lastUpdatedAt: new Date(),
         });
         await manager.save(Signature, newSignature);
       }
