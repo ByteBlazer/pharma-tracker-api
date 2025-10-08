@@ -13,4 +13,5 @@ export class DocTrackingResponseDto {
     longitude: string;
     receivedAt: Date;
   };
+  otherCustomersServiceTime?: number; // in minutes
 }
