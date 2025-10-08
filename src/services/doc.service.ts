@@ -7,7 +7,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { DataSource, In, Like, MoreThan, Repository } from "typeorm";
+import { DataSource, In, Like, MoreThan, Not, Repository } from "typeorm";
 
 import { GlobalConstants } from "src/GlobalConstants";
 import { DispatchQueue } from "src/interfaces/dispatch-queue.interface";
@@ -850,6 +850,17 @@ export class DocService {
                 longitude: driverLocation.geoLongitude,
                 receivedAt: driverLocation.receivedAt,
               };
+
+              // Calculate otherCustomersServiceTime
+              response.otherCustomersServiceTime =
+                await this.calculateOtherCustomersServiceTime(
+                  doc,
+                  trip,
+                  driverLocation
+                );
+            } else {
+              // Driver location not available
+              response.otherCustomersServiceTime = undefined;
             }
           }
         }
@@ -861,5 +872,127 @@ export class DocService {
     }
 
     return response;
+  }
+
+  private async calculateOtherCustomersServiceTime(
+    currentDoc: Doc,
+    trip: Trip,
+    driverLocation: LocationHeartbeat
+  ): Promise<number | undefined> {
+    try {
+      // Check if current document's customer has location
+      if (
+        !currentDoc.customer ||
+        !currentDoc.customer.geoLatitude ||
+        !currentDoc.customer.geoLongitude
+      ) {
+        return undefined; // Current customer has no location
+      }
+
+      // Get all other documents in the same trip with ON_TRIP status only
+      const otherDocs = await this.docRepository.find({
+        where: {
+          tripId: trip.id,
+          id: Not(currentDoc.id), // Exclude current document
+          status: DocStatus.ON_TRIP,
+        },
+        relations: ["customer"],
+      });
+
+      if (otherDocs.length === 0) {
+        return 0; // No other customers to serve
+      }
+
+      // Get driver coordinates
+      const driverLat = parseFloat(driverLocation.geoLatitude);
+      const driverLng = parseFloat(driverLocation.geoLongitude);
+
+      if (isNaN(driverLat) || isNaN(driverLng)) {
+        return undefined; // Driver location not available
+      }
+
+      // Calculate distances and sort documents by proximity to driver
+      const docsWithDistance = otherDocs.map((doc) => {
+        let distance = 0;
+
+        if (
+          doc.customer &&
+          doc.customer.geoLatitude &&
+          doc.customer.geoLongitude
+        ) {
+          const customerLat = parseFloat(doc.customer.geoLatitude);
+          const customerLng = parseFloat(doc.customer.geoLongitude);
+
+          if (!isNaN(customerLat) && !isNaN(customerLng)) {
+            distance = this.calculateDistance(
+              driverLat,
+              driverLng,
+              customerLat,
+              customerLng
+            );
+          }
+        }
+
+        return { doc, distance };
+      });
+
+      // Sort by distance (ascending) - distance=0 naturally comes first
+      docsWithDistance.sort((a, b) => a.distance - b.distance);
+
+      // Calculate current document's position in the sorted list
+      const currentCustomerLat = parseFloat(currentDoc.customer.geoLatitude);
+      const currentCustomerLng = parseFloat(currentDoc.customer.geoLongitude);
+
+      if (isNaN(currentCustomerLat) || isNaN(currentCustomerLng)) {
+        return undefined; // Current customer location invalid
+      }
+
+      const currentDistance = this.calculateDistance(
+        driverLat,
+        driverLng,
+        currentCustomerLat,
+        currentCustomerLng
+      );
+
+      // Find how many customers come before current customer
+      let customersBeforeCurrent = 0;
+      for (const docWithDistance of docsWithDistance) {
+        if (docWithDistance.distance < currentDistance) {
+          customersBeforeCurrent++;
+        } else {
+          break; // Since list is sorted, we can break here
+        }
+      }
+
+      // Calculate service time: number of customers before current × 10 minutes
+      return customersBeforeCurrent * 10;
+    } catch (error) {
+      console.error("Error calculating other customers service time:", error);
+      return undefined; // Return undefined on error
+    }
+  }
+
+  private calculateDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+  ): number {
+    // Haversine formula to calculate distance between two points
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLng = this.toRadians(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) *
+        Math.cos(this.toRadians(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in kilometers
+  }
+
+  private toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 }

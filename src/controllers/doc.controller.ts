@@ -112,7 +112,7 @@ export class DocController {
 
   @Get("create-mock-docs")
   @SkipAuth()
-  @Throttle({ default: { limit: 5, ttl: 1 * 60 * 1000 } })
+  @Throttle({ default: { limit: 30, ttl: 1 * 60 * 1000 } })
   async createMockData(
     @Query("useOneRealPhoneNumber") useOneRealPhoneNumber: string,
     @Query("useOneRealRouteId") useOneRealRouteId: string,
