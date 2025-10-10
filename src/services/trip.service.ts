@@ -921,11 +921,13 @@ export class TripService {
 
     try {
       // Update all documents with the specified lot to AT_TRANSIT_HUB status
+      // Only update if current status is ON_TRIP
       await queryRunner.manager.update(
         Doc,
         {
           tripId: tripId,
           lot: lotHeading,
+          status: DocStatus.ON_TRIP,
         },
         { status: DocStatus.AT_TRANSIT_HUB }
       );
