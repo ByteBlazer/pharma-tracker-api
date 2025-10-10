@@ -545,8 +545,12 @@ export class TripService {
       let dropOffCompleted = false;
       if (!isDirectDelivery) {
         // For lot groups, check if all docs are in AT_TRANSIT_HUB status
+
         dropOffCompleted = docsInGroup.every(
-          (doc) => doc.status === DocStatus.AT_TRANSIT_HUB
+          (doc) =>
+            doc.status === DocStatus.AT_TRANSIT_HUB ||
+            doc.status === DocStatus.DELIVERED ||
+            doc.status === DocStatus.UNDELIVERED
         );
       }
       // For Direct Deliveries, dropOffCompleted is always false
