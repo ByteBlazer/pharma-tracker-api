@@ -69,6 +69,8 @@ export class DocService {
         //Flip our DB too.
       }
 
+      const previousDocStatus = existingDoc.status;
+
       // Update document for all cases that allow scanning
       if (
         existingDoc.status !== DocStatus.DELIVERED &&
@@ -77,11 +79,12 @@ export class DocService {
       ) {
         existingDoc.lastScannedBy = loggedInUser.id;
         existingDoc.lastUpdatedAt = new Date();
+        existingDoc.status = DocStatus.READY_FOR_DISPATCH;
         await this.docRepository.save(existingDoc);
       }
 
       // Handle different document statuses
-      switch (existingDoc.status) {
+      switch (previousDocStatus) {
         case DocStatus.DELIVERED:
           return {
             success: false,
