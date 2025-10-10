@@ -69,6 +69,8 @@ export class DocService {
         //Flip our DB too.
       }
 
+      const previousDocStatus = existingDoc.status;
+
       // Update document for all cases that allow scanning
       if (
         existingDoc.status !== DocStatus.DELIVERED &&
@@ -82,7 +84,7 @@ export class DocService {
       }
 
       // Handle different document statuses
-      switch (existingDoc.status) {
+      switch (previousDocStatus) {
         case DocStatus.DELIVERED:
           return {
             success: false,
