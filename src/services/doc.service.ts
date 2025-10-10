@@ -77,6 +77,7 @@ export class DocService {
       ) {
         existingDoc.lastScannedBy = loggedInUser.id;
         existingDoc.lastUpdatedAt = new Date();
+        existingDoc.status = DocStatus.READY_FOR_DISPATCH;
         await this.docRepository.save(existingDoc);
       }
 
