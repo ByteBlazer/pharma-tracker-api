@@ -17,6 +17,7 @@ import { RouteSummary } from "src/interfaces/route-summary.interface";
 import { ScannedUserSummary } from "src/interfaces/scanned-user-summary.interface";
 import { Customer } from "../entities/customer.entity";
 import { Doc } from "../entities/doc.entity";
+import { DocTrackingAccess } from "../entities/doc-tracking-access.entity";
 import { Signature } from "../entities/signature.entity";
 import { AppUser } from "../entities/app-user.entity";
 import { Trip } from "../entities/trip.entity";
@@ -35,6 +36,8 @@ export class DocService {
     private readonly customerRepository: Repository<Customer>,
     @InjectRepository(Doc)
     private readonly docRepository: Repository<Doc>,
+    @InjectRepository(DocTrackingAccess)
+    private readonly docTrackingAccessRepository: Repository<DocTrackingAccess>,
     @InjectRepository(Signature)
     private readonly signatureRepository: Repository<Signature>,
     @InjectRepository(AppUser)
@@ -845,7 +848,11 @@ export class DocService {
     };
   }
 
-  async trackDocument(token: string): Promise<DocTrackingResponseDto> {
+  async trackDocument(
+    token: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<DocTrackingResponseDto> {
     // Decode the base64 token to get docId
     let docId: string;
     try {
@@ -862,6 +869,21 @@ export class DocService {
 
     if (!doc) {
       throw new BadRequestException("Invalid token");
+    }
+
+    // Log the tracking access
+    try {
+      const trackingAccess = this.docTrackingAccessRepository.create({
+        docId: docId,
+        customerId: doc.customerId,
+        accessedAt: new Date(),
+        ipAddress: ipAddress || null,
+        userAgent: userAgent || null,
+      });
+      await this.docTrackingAccessRepository.save(trackingAccess);
+    } catch (error) {
+      // Log error but don't fail the tracking request
+      console.error("Error saving tracking access:", error);
     }
 
     const response: DocTrackingResponseDto = {

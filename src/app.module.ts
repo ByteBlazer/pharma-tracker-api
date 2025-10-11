@@ -14,6 +14,7 @@ import { AppUser } from "./entities/app-user.entity";
 import { BaseLocation } from "./entities/base-location.entity";
 import { Customer } from "./entities/customer.entity";
 import { Doc } from "./entities/doc.entity";
+import { DocTrackingAccess } from "./entities/doc-tracking-access.entity";
 import { LocationHeartbeat } from "./entities/location-heartbeat.entity";
 import { Setting } from "./entities/setting.entity";
 import { Signature } from "./entities/signature.entity";
@@ -56,6 +57,7 @@ import { TripService } from "./services/trip.service";
         AppUserXUserRole,
         Customer,
         Doc,
+        DocTrackingAccess,
         Setting,
         Signature,
         Trip,
@@ -72,6 +74,7 @@ import { TripService } from "./services/trip.service";
       AppUserXUserRole,
       Customer,
       Doc,
+      DocTrackingAccess,
       Setting,
       Signature,
       Trip,

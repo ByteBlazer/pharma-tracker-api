@@ -9,10 +9,11 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { RequireRoles } from "src/decorators/require-roles.decorator";
 import { UserRole } from "src/enums/user-role.enum";
 import { LoggedInUser } from "../decorators/logged-in-user.decorator";
@@ -260,10 +261,22 @@ export class DocController {
   @Throttle({ default: { limit: 100, ttl: 1 * 60 * 1000 } }) // 100 requests per minute
   async trackDocument(
     @Query("token") token: string,
+    @Req() req: Request,
     @Res() res: Response
   ): Promise<void> {
     try {
-      const result = await this.docService.trackDocument(token);
+      // Extract IP address and user agent from request
+      const ipAddress =
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0] ||
+        req.socket.remoteAddress ||
+        null;
+      const userAgent = req.headers["user-agent"] || null;
+
+      const result = await this.docService.trackDocument(
+        token,
+        ipAddress,
+        userAgent
+      );
 
       res.status(HttpStatus.OK).json(result);
     } catch (error) {
