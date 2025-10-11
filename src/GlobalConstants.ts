@@ -20,6 +20,7 @@ export class GlobalConstants {
   static readonly CUSTOMERS = [
     // Route 1 - Ernakulam
     {
+      docId: ``,
       id: `${GlobalConstants.MOCK_CUSTOMER_PREFIX}001`,
       name: "ABC Pharmaceuticals",
       address: "123 Business Park",
