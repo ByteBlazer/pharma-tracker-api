@@ -117,6 +117,7 @@ export class DocController {
     @Query("useOneRealPhoneNumber") useOneRealPhoneNumber: string,
     @Query("useOneRealRouteId") useOneRealRouteId: string,
     @Query("useOneRealLotNbr") useOneRealLotNbr: string,
+    @Query("mockOfMocks") mockOfMocks: boolean,
     @Res() res: Response
   ): Promise<void> {
     // Validate phone number if provided
@@ -147,6 +148,7 @@ export class DocController {
     }
 
     const result = await this.docService.createMockData(
+      mockOfMocks,
       useOneRealPhoneNumber,
       useOneRealRouteId,
       useOneRealLotNbr

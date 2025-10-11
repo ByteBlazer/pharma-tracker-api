@@ -8,6 +8,7 @@ import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
 import { DataSource, In, Like, MoreThan, Not, Repository } from "typeorm";
+import axios from "axios";
 
 import { GlobalConstants } from "src/GlobalConstants";
 import { DispatchQueue } from "src/interfaces/dispatch-queue.interface";
@@ -58,6 +59,45 @@ export class DocService {
     //TODO: Make ERP call and store retrieved doc details and status from ERP.
     let erpMatchFound = false;
     let docFromErp = null;
+
+    // Fetch document details from ERP
+    try {
+      const response = await axios.get(
+        `https://sit-api.1c2.in:4431/delivery/document`,
+        {
+          params: {
+            doc_id: docId,
+            user: loggedInUser.username,
+          },
+          headers: {
+            "x-api-prod-code": "DEV-DELCONN",
+            "x-api-token": "f1e069787ece74",
+          },
+        }
+      );
+
+      if (response.data) {
+        docFromErp = {
+          docId: docId,
+          status: response.data.status,
+          routeId: response.data.routeName,
+          lotNbr: response.data.lotNbr,
+          whseLocationName: response.data.whseLocationName,
+          customerId: response.data.customerId,
+          customerName: response.data.customerName,
+          customerAddress: response.data.customerAddress,
+          customerCity: response.data.customerCity,
+          invoiceDate: response.data.invoiceDate,
+          invoiceAmount: response.data.invoiceAmount,
+          docDate: response.data.invoiceDate,
+          docAmount: response.data.invoiceAmount,
+        };
+        erpMatchFound = true;
+      }
+    } catch (error) {
+      console.error("Error fetching document from ERP API:", error);
+      // If API call fails, continue with erpMatchFound = false
+    }
 
     // Check if document already exists in database
     const existingDoc = await this.docRepository.findOne({
@@ -449,6 +489,7 @@ export class DocService {
   }
 
   async createMockData(
+    mockOfMocks: boolean,
     useOneRealPhoneNumber?: string,
     useOneRealRouteId?: string,
     useOneRealLotNbr?: string
@@ -460,7 +501,37 @@ export class DocService {
     const lotNumbers = ["LOT001", "LOT002", "LOT003", ""];
     const warehouseLocations = ["WH-Vytilla", "WH-Thodupuzha"];
 
-    const customers = GlobalConstants.CUSTOMERS;
+    let customers = GlobalConstants.CUSTOMERS;
+
+    let docsFromErp = [];
+
+    if (!mockOfMocks) {
+      try {
+        const response = await axios.get(
+          "https://sit-api.1c2.in:4431/delivery/recent-documents",
+          {
+            headers: {
+              "x-api-prod-code": "DEV-DELCONN",
+              "x-api-token": "f1e069787ece74",
+            },
+          }
+        );
+
+        // Map the API response to docsFromErp array
+        if (response.data && response.data.documents) {
+          docsFromErp = response.data.documents.map((doc) => ({
+            docId: doc.docId,
+            status: doc.status,
+            routeId: doc.route_id,
+            lotNbr: doc.lotNbr,
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching documents from ERP API:", error);
+        // If API call fails, use empty array as fallback
+        docsFromErp = [];
+      }
+    }
 
     // Generate 10 mock documents with 50% having blank status
     for (let i = 0; i < GlobalConstants.NUM_BARCODES_IN_PDF; i++) {
@@ -506,40 +577,48 @@ export class DocService {
       // Generate docAmount (between 100.00 and 10000.00, excluding both)
       const docAmount = parseFloat((Math.random() * 9900 + 100.01).toFixed(2));
 
-      const mockDoc = {
-        docId: generateDocId(),
-        status: "",
-        routeId: selectedCustomer.route,
-        lotNbr:
-          i === 0 && useOneRealPhoneNumber && useOneRealLotNbr
-            ? useOneRealLotNbr
-            : lotNumbers[Math.floor(Math.random() * lotNumbers.length)], // Can be blank
-        whseLocationName:
-          warehouseLocations[
-            Math.floor(Math.random() * warehouseLocations.length)
-          ],
-        customerId: selectedCustomer.id,
-        customerName: selectedCustomer.name,
-        customerAddress: selectedCustomer.address,
-        customerCity: selectedCustomer.city,
-        customerPinCode: selectedCustomer.pincode,
-        customerPhone: phoneNumber,
-        docDate: docDate,
-        docAmount: docAmount,
-        invoiceDate: new Date(
-          Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000
-        ), // Random date within last 30 days
-        invoiceAmount: parseFloat((Math.random() * 10000 + 100).toFixed(2)), // Random amount between 100 and 10100
-      };
+      if (mockOfMocks) {
+        const mockDoc = {
+          docId: generateDocId(),
+          status: "",
+          routeId: selectedCustomer.route,
+          lotNbr:
+            i === 0 && useOneRealPhoneNumber && useOneRealLotNbr
+              ? useOneRealLotNbr
+              : lotNumbers[Math.floor(Math.random() * lotNumbers.length)], // Can be blank
+          whseLocationName:
+            warehouseLocations[
+              Math.floor(Math.random() * warehouseLocations.length)
+            ],
+          customerId: selectedCustomer.id,
+          customerName: selectedCustomer.name,
+          customerAddress: selectedCustomer.address,
+          customerCity: selectedCustomer.city,
+          customerPinCode: selectedCustomer.pincode,
+          customerPhone: phoneNumber,
+          docDate: docDate,
+          docAmount: docAmount,
+          invoiceDate: new Date(
+            Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000
+          ), // Random date within last 30 days
+          invoiceAmount: parseFloat((Math.random() * 10000 + 100).toFixed(2)), // Random amount between 100 and 10100
+        };
 
-      mockDocs.push(mockDoc);
+        mockDocs.push(mockDoc);
+      } else {
+        const mockDoc = {
+          docId:
+            docsFromErp[Math.floor(Math.random() * docsFromErp.length)].docId,
+        };
+        mockDocs.push(mockDoc);
+      }
     }
 
     // Add all mock docs to app service
     this.mockDataService.addMockDocs(mockDocs);
 
     // Generate PDF with barcodes
-    const pdfBuffer = await this.generatePdfWithBarcodes(mockDocs);
+    const pdfBuffer = await this.generatePdfWithBarcodes(mockDocs, mockOfMocks);
 
     return {
       message: "Mock data created successfully",
@@ -549,7 +628,10 @@ export class DocService {
     };
   }
 
-  private async generatePdfWithBarcodes(mockDocs: any[]): Promise<Buffer> {
+  private async generatePdfWithBarcodes(
+    mockDocs: any[],
+    mockOfMocks: boolean
+  ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
@@ -605,16 +687,18 @@ export class DocService {
               .moveDown(0.2);
 
             // Other document details in smaller font
-            doc
-              .fontSize(8)
-              .text(`Customer: ${docData.customerName}`)
-              .text(`Phone: ${docData.customerPhone || "N/A"}`)
-              .text(`Route: ${docData.routeId}`)
-              .text(`Lot: ${docData.lotNbr || "N/A"}`)
-              .text(`Date: ${docData.docDate.toLocaleDateString()}`)
-              .text(`Amount: Rs. ${docData.docAmount}`)
-              .text(`Status: ${docData.status || "Blank"}`)
-              .moveDown(0.3);
+            if (mockOfMocks) {
+              doc
+                .fontSize(8)
+                .text(`Customer: ${docData.customerName}`)
+                .text(`Phone: ${docData.customerPhone || "N/A"}`)
+                .text(`Route: ${docData.routeId}`)
+                .text(`Lot: ${docData.lotNbr || "N/A"}`)
+                .text(`Date: ${docData.docDate?.toLocaleDateString()}`)
+                .text(`Amount: Rs. ${docData.docAmount}`)
+                .text(`Status: ${docData.status || "Blank"}`)
+                .moveDown(0.3);
+            }
 
             // Generate barcode
             const canvas = require("canvas").createCanvas(150, 40);
