@@ -871,20 +871,18 @@ export class DocService {
       throw new BadRequestException("Invalid token");
     }
 
-    // Log the tracking access
-    try {
-      const trackingAccess = this.docTrackingAccessRepository.create({
-        docId: docId,
-        customerId: doc.customerId,
-        accessedAt: new Date(),
-        ipAddress: ipAddress || null,
-        userAgent: userAgent || null,
-      });
-      await this.docTrackingAccessRepository.save(trackingAccess);
-    } catch (error) {
+    // Log the tracking access (non-blocking)
+    const trackingAccess = this.docTrackingAccessRepository.create({
+      docId: docId,
+      customerId: doc.customerId,
+      accessedAt: new Date(),
+      ipAddress: ipAddress || null,
+      userAgent: userAgent || null,
+    });
+    this.docTrackingAccessRepository.save(trackingAccess).catch((error) => {
       // Log error but don't fail the tracking request
       console.error("Error saving tracking access:", error);
-    }
+    });
 
     const response: DocTrackingResponseDto = {
       success: true,
