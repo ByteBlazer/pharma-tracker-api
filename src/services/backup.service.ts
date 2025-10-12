@@ -133,12 +133,26 @@ export class BackupService {
       };
     } catch (error) {
       console.error("❌ Backup creation failed:", error);
-      if (error.message?.includes("pg_dump")) {
+
+      // Check if error is specifically about command not found
+      if (
+        error.code === "ENOENT" ||
+        error.message?.toLowerCase().includes("command not found")
+      ) {
         throw new BadRequestException(
           "pg_dump command not found. Ensure PostgreSQL client tools are installed on the server."
         );
       }
-      throw new BadRequestException(`Backup creation failed: ${error.message}`);
+
+      // Re-throw BadRequestException as-is (like bucket not found, AWS errors)
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // For other errors, include the actual error message
+      throw new BadRequestException(
+        `Backup creation failed: ${error.message || error}`
+      );
     }
   }
 
@@ -293,17 +307,31 @@ export class BackupService {
       };
     } catch (error) {
       console.error("❌ Database restore failed:", error);
+      console.error("Error details:", {
+        code: error.code,
+        message: error.message,
+        stderr: error.stderr,
+        stdout: error.stdout,
+      });
+
+      // Check if error is specifically about command not found
       if (
-        error.message?.includes("pg_restore") ||
-        error.message?.includes("psql")
+        error.code === "ENOENT" ||
+        error.message?.toLowerCase().includes("command not found")
       ) {
         throw new BadRequestException(
           "PostgreSQL client tools not found. Ensure psql and pg_restore are installed on the server."
         );
       }
-      throw new BadRequestException(
-        `Database restore failed: ${error.message}`
-      );
+
+      // Re-throw BadRequestException as-is (like bucket not found, AWS errors, passkey errors)
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // For other errors, include the actual error message with stderr if available
+      const errorDetails = error.stderr || error.message || error;
+      throw new BadRequestException(`Database restore failed: ${errorDetails}`);
     }
   }
 
