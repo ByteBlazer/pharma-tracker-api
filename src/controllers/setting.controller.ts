@@ -29,7 +29,7 @@ export class SettingController {
   @RequireRoles(UserRole.WEB_ACCESS)
   async createBackup(@Res() res: Response): Promise<void> {
     try {
-      const result = await this.backupService.createBackup();
+      const result = await this.backupService.createBackup("Manual");
       res.status(result.statusCode).json({
         success: result.success,
         message: result.message,
