@@ -25,7 +25,47 @@ EC2_SSH_PRIVATE_KEY: Your private SSH key for EC2 access
 EC2_HOST: Your EC2 instance endpoint (e.g., ec2-123-456-789-012.compute-1.amazonaws.com)
 DB_PASSWORD: Your PostgreSQL database password
 JWT_SECRET: Your JWT secret key for authentication
+SMS_API_KEY: Your SMS API key for OTP functionality
+AWS_ACCESS_KEY: Your AWS access key ID
+AWS_SECRET_KEY: Your AWS secret access key
 ```
+
+## Local Development
+
+### AWS Credentials Auto-Loading
+
+When running the application locally, AWS credentials are automatically loaded from your AWS CLI credentials file. This eliminates the need to hardcode credentials in your local environment files.
+
+**How it works:**
+
+1. Install and configure AWS CLI on your local machine:
+
+   ```bash
+   # Windows: Download from https://aws.amazon.com/cli/
+   # Mac: brew install awscli
+   # Linux: sudo apt-get install awscli
+
+   # Configure credentials
+   aws configure
+   ```
+
+2. The application automatically reads credentials from:
+
+   - **Windows:** `C:\Users\<YourUser>\.aws\credentials`
+   - **Mac/Linux:** `~/.aws/credentials`
+
+3. When you run `npm run start:dev`, the app automatically (via `src/main.ts`):
+   - Detects if AWS credentials are placeholders
+   - Loads actual credentials from your AWS credentials file
+   - Sets them as environment variables before the app initializes
+
+**Benefits:**
+
+- ✅ No need to replace placeholders in `env.staging` or `env.production` files
+- ✅ Uses your existing AWS CLI configuration
+- ✅ Works across Windows, Mac, and Linux
+- ✅ Secure - credentials never committed to Git
+- ✅ Runs automatically on application startup (built into `main.ts`)
 
 ## Setup Instructions
 

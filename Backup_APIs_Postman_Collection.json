@@ -1,0 +1,233 @@
+{
+  "info": {
+    "name": "Pharma Tracker - Backup & Restore APIs",
+    "description": "Collection for Database Backup and Restore operations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Create Database Backup",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/setting/backup",
+          "host": ["{{base_url}}"],
+          "path": ["api", "setting", "backup"]
+        },
+        "description": "Creates a compressed database backup and uploads it to S3.\n\n**Features:**\n- Compressed format (pg_dump custom format)\n- Automatic timestamp in IST\n- Auto-cleanup (keeps max 30 backups)\n- 5-minute timeout\n\n**Required Role:** WEB_ACCESS"
+      },
+      "response": [
+        {
+          "name": "Success - Backup Created",
+          "originalRequest": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/setting/backup",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "backup"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"success\": true,\n  \"message\": \"Database backup created successfully: pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\",\n  \"filename\": \"pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\"\n}"
+        },
+        {
+          "name": "Error - S3 Bucket Not Found",
+          "originalRequest": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/setting/backup",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "backup"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"success\": false,\n  \"message\": \"S3 bucket 'pharmatracker-db-dump' does not exist or is not accessible\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "2. List Backup Files",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/setting/backups",
+          "host": ["{{base_url}}"],
+          "path": ["api", "setting", "backups"]
+        },
+        "description": "Lists all available backup files from S3, sorted by recency.\n\n**Returns:**\n- Array of backup files\n- Filename, lastModified date, size in bytes\n- Sorted by most recent first\n- Shows backups from ALL environments\n\n**Required Role:** WEB_ACCESS"
+      },
+      "response": [
+        {
+          "name": "Success - With Backups",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/setting/backups",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "backups"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"success\": true,\n  \"backups\": [\n    {\n      \"filename\": \"pharmatracker-production-on-2025-01-15-at-02-30-23-PM-IST.dump\",\n      \"lastModified\": \"2025-01-15T09:00:23.000Z\",\n      \"size\": 12345678\n    },\n    {\n      \"filename\": \"pharmatracker-staging-on-2025-01-15-at-01-15-10-PM-IST.dump\",\n      \"lastModified\": \"2025-01-15T07:45:10.000Z\",\n      \"size\": 11234567\n    },\n    {\n      \"filename\": \"pharmatracker-production-on-2025-01-14-at-11-45-30-PM-IST.dump\",\n      \"lastModified\": \"2025-01-14T18:15:30.000Z\",\n      \"size\": 12000000\n    }\n  ],\n  \"count\": 3\n}"
+        },
+        {
+          "name": "Success - Empty List",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/setting/backups",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "backups"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"success\": true,\n  \"backups\": [],\n  \"count\": 0\n}"
+        }
+      ]
+    },
+    {
+      "name": "3. Restore Database from Backup",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"filename\": \"pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\",\n  \"passkey\": \"RESTORE_DB_PASSKEY_2025\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/setting/restore",
+          "host": ["{{base_url}}"],
+          "path": ["api", "setting", "restore"]
+        },
+        "description": "⚠️ **DESTRUCTIVE OPERATION** ⚠️\n\nRestores database from a backup file. This will:\n- DROP the current database\n- CREATE a fresh database\n- RESTORE data from backup\n- LOG OUT all users\n\n**Safety Features:**\n- Requires restore passkey\n- Requires recent backup from current environment (within 5 minutes)\n- Only restores to current environment's database\n- 5-minute timeout\n\n**Required Role:** WEB_ACCESS + Valid Passkey\n\n**⚠️ IMPORTANT:**\nBefore calling this API:\n1. Create a safety backup first (POST /api/setting/backup)\n2. Wait for backup to complete\n3. Then call restore within 5 minutes"
+      },
+      "response": [
+        {
+          "name": "Success - Database Restored",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filename\": \"pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\",\n  \"passkey\": \"RESTORE_DB_PASSKEY_2025\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/setting/restore",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "restore"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"success\": true,\n  \"message\": \"Database restored successfully from backup: pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\"\n}"
+        },
+        {
+          "name": "Error - Invalid Passkey",
+          "originalRequest": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filename\": \"pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\",\n  \"passkey\": \"WRONG_PASSKEY\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/setting/restore",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "restore"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"success\": false,\n  \"message\": \"Invalid restore passkey\"\n}"
+        },
+        {
+          "name": "Error - No Recent Backup (Safety Check)",
+          "originalRequest": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filename\": \"pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\",\n  \"passkey\": \"RESTORE_DB_PASSKEY_2025\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/setting/restore",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "restore"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"success\": false,\n  \"message\": \"Safety check failed: No recent backup found from 'staging' environment within last 5 minutes. Please create a backup first (POST /api/setting/backup) and then retry restore.\"\n}"
+        },
+        {
+          "name": "Error - Backup File Not Found",
+          "originalRequest": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filename\": \"non-existent-backup.dump\",\n  \"passkey\": \"RESTORE_DB_PASSKEY_2025\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/setting/restore",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "restore"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"success\": false,\n  \"message\": \"Backup file not found: non-existent-backup.dump\"\n}"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "YOUR_JWT_TOKEN_HERE",
+      "type": "string"
+    }
+  ]
+}
