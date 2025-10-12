@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import {
   S3Client,
   PutObjectCommand,
@@ -54,9 +55,25 @@ export class BackupService {
   }
 
   /**
+   * Scheduled task - Auto backup at 2 AM IST daily
+   */
+  @Cron("0 2 * * *", {
+    timeZone: "Asia/Kolkata", // IST timezone
+  })
+  async handleScheduledBackup() {
+    try {
+      console.log("🕐 Scheduled backup starting at 2 AM IST...");
+      const result = await this.createBackup("Auto");
+      console.log(`✅ Scheduled backup completed: ${result.filename}`);
+    } catch (error) {
+      console.error("❌ Scheduled backup failed:", error.message);
+    }
+  }
+
+  /**
    * Create a database backup and upload to S3
    */
-  async createBackup(): Promise<{
+  async createBackup(type: "Auto" | "Manual" = "Manual"): Promise<{
     success: boolean;
     message: string;
     filename: string;
@@ -70,7 +87,7 @@ export class BackupService {
       await this.checkBucketExists();
 
       // Generate filename with IST timestamp
-      const filename = this.generateBackupFilename();
+      const filename = this.generateBackupFilename(type);
       const tempDir = os.tmpdir();
       const localFilePath = path.join(tempDir, filename);
 
@@ -356,7 +373,7 @@ export class BackupService {
   /**
    * Generate backup filename with IST timestamp
    */
-  private generateBackupFilename(): string {
+  private generateBackupFilename(type: "Auto" | "Manual" = "Manual"): string {
     const env = process.env.NODE_ENV || "development";
 
     // Get current time in IST
@@ -364,7 +381,8 @@ export class BackupService {
     const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
     const istTime = new Date(now.getTime() + istOffset);
 
-    // Format: pharmatracker-production-on-2025-01-15-at-02-30-23-PM-IST.dump
+    // Format: pharmatracker-production-Manual-on-2025-01-15-at-02-30-23-PM-IST.dump
+    //     or: pharmatracker-production-Auto-on-2025-01-15-at-02-30-23-PM-IST.dump
     const year = istTime.getUTCFullYear();
     const month = String(istTime.getUTCMonth() + 1).padStart(2, "0");
     const day = String(istTime.getUTCDate()).padStart(2, "0");
@@ -377,7 +395,7 @@ export class BackupService {
     hours = hours % 12 || 12; // Convert to 12-hour format
     const hoursStr = String(hours).padStart(2, "0");
 
-    return `pharmatracker-${env}-on-${year}-${month}-${day}-at-${hoursStr}-${minutes}-${seconds}-${ampm}-IST.dump`;
+    return `pharmatracker-${env}-${type}-on-${year}-${month}-${day}-at-${hoursStr}-${minutes}-${seconds}-${ampm}-IST.dump`;
   }
 
   /**
