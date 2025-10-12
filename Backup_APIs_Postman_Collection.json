@@ -50,6 +50,21 @@
           "body": "{\n  \"success\": true,\n  \"message\": \"Database backup created successfully: pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\",\n  \"filename\": \"pharmatracker-staging-on-2025-01-15-at-02-30-23-PM-IST.dump\"\n}"
         },
         {
+          "name": "Error - AWS Credentials Not Configured",
+          "originalRequest": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/setting/backup",
+              "host": ["{{base_url}}"],
+              "path": ["api", "setting", "backup"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"success\": false,\n  \"message\": \"AWS credentials not configured. Please configure AWS_ACCESS_KEY in environment variables.\"\n}"
+        },
+        {
           "name": "Error - S3 Bucket Not Found",
           "originalRequest": {
             "method": "POST",

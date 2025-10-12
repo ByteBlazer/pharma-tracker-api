@@ -51,6 +51,22 @@ POST /api/setting/backup
 
 ### Error Responses
 
+#### 400 Bad Request - AWS Credentials Not Configured
+
+```json
+{
+  "success": false,
+  "message": "AWS credentials not configured. Please configure AWS_ACCESS_KEY in environment variables."
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "AWS credentials not configured. Please configure AWS_SECRET_KEY in environment variables."
+}
+```
+
 #### 400 Bad Request - S3 Bucket Not Found
 
 ```json
@@ -161,6 +177,22 @@ GET /api/setting/backups
 ```
 
 ### Error Responses
+
+#### 400 Bad Request - AWS Credentials Not Configured
+
+```json
+{
+  "success": false,
+  "message": "AWS credentials not configured. Please configure AWS_ACCESS_KEY in environment variables."
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "AWS credentials not configured. Please configure AWS_SECRET_KEY in environment variables."
+}
+```
 
 #### 400 Bad Request - S3 Bucket Not Found
 
@@ -274,6 +306,22 @@ POST /api/setting/restore
 {
   "success": false,
   "message": "Restore passkey is required"
+}
+```
+
+#### 400 Bad Request - AWS Credentials Not Configured
+
+```json
+{
+  "success": false,
+  "message": "AWS credentials not configured. Please configure AWS_ACCESS_KEY in environment variables."
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "AWS credentials not configured. Please configure AWS_SECRET_KEY in environment variables."
 }
 ```
 
