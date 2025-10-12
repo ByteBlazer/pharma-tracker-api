@@ -354,6 +354,70 @@ export class BackupService {
   }
 
   /**
+   * Download a backup file from S3
+   */
+  async downloadBackup(filename: string): Promise<{
+    fileBuffer: Buffer;
+    filename: string;
+  }> {
+    try {
+      // Check AWS credentials are configured
+      this.checkAWSConnection();
+
+      // Check if S3 bucket exists
+      await this.checkBucketExists();
+
+      // Verify backup file exists
+      const backupsList = await this.listBackups();
+      const backupExists = backupsList.backups.some(
+        (b) => b.filename === filename
+      );
+      if (!backupExists) {
+        throw new BadRequestException(`Backup file not found: ${filename}`);
+      }
+
+      console.log(`📥 Downloading backup from S3: ${filename}`);
+
+      // Download from S3
+      const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+      const getCommand = new GetObjectCommand({
+        Bucket: GlobalConstants.BACKUP_BUCKET_NAME,
+        Key: filename,
+      });
+
+      const s3Response = await this.s3Client.send(getCommand);
+      const stream = s3Response.Body as NodeJS.ReadableStream;
+
+      // Convert stream to buffer
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      const fileBuffer = Buffer.concat(chunks);
+
+      console.log(
+        `✅ Backup downloaded successfully: ${filename} (${fileBuffer.length} bytes)`
+      );
+
+      return {
+        fileBuffer,
+        filename,
+      };
+    } catch (error) {
+      console.error("❌ Download failed:", error);
+
+      // Re-throw BadRequestException as-is
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException(
+        `Failed to download backup: ${error.message}`
+      );
+    }
+  }
+
+  /**
    * Check if S3 bucket exists
    */
   private async checkBucketExists(): Promise<void> {
