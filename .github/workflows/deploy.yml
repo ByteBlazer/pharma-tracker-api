@@ -96,12 +96,12 @@ jobs:
           echo "✅ Environment file copied"
 
           echo "🔐 Injecting secrets into environment file..."
-          # Replace sensitive values with secrets (order matters - replace JWT_SECRET first)
-          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/DB_PASSWORD_PLACEHOLDER/${{ secrets.DB_PASSWORD }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
-          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/SMS_SECRET_PLACEHOLDER/${{ secrets.SMS_API_KEY }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
-          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/JWT_SECRET_PLACEHOLDER/${{ secrets.JWT_SECRET }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
-          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/AWS_ACCESS_KEY_PLACEHOLDER/${{ secrets.AWS_ACCESS_KEY }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
-          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's/AWS_SECRET_KEY_PLACEHOLDER/${{ secrets.AWS_SECRET_KEY }}/g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+          # Replace sensitive values with secrets (using | as delimiter to handle special characters like /)
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's|DB_PASSWORD_PLACEHOLDER|${{ secrets.DB_PASSWORD }}|g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's|SMS_SECRET_PLACEHOLDER|${{ secrets.SMS_API_KEY }}|g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's|JWT_SECRET_PLACEHOLDER|${{ secrets.JWT_SECRET }}|g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's|AWS_ACCESS_KEY_PLACEHOLDER|${{ secrets.AWS_ACCESS_KEY }}|g' /opt/pharma-tracker-api/$ENV/env.$ENV"
+          ssh ubuntu@${{ secrets.EC2_HOST }} "sed -i 's|AWS_SECRET_KEY_PLACEHOLDER|${{ secrets.AWS_SECRET_KEY }}|g' /opt/pharma-tracker-api/$ENV/env.$ENV"
           echo "✅ Secrets injected successfully"
 
           echo "📥 Installing production dependencies..."
