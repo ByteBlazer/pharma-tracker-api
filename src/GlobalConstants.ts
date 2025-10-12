@@ -6,6 +6,15 @@ export class GlobalConstants {
   static readonly SEND_SMS_URL_TEMPLATE =
     "https://2factor.in/API/R1/?module=TRANS_SMS&apikey={apikey}&to={recipientMobileNumber}&from=BTBLZR&templatename={smsTemplateName}";
   static readonly SMS_OTP_TEMPLATE = "PHARMA_OTP_V6";
+
+  // ERP API Configuration
+  static readonly ERP_API_BASE_URL = "https://sit-api.1c2.in:4431/delivery";
+  static readonly ERP_API_PROD_CODE = "DEV-DELCONN";
+  static readonly ERP_API_TOKEN = "f1e069787ece74";
+  static readonly ERP_API_HEADERS = {
+    "x-api-prod-code": "DEV-DELCONN",
+    "x-api-token": "f1e069787ece74",
+  };
   static readonly FALLBACK_LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS = 60;
   static readonly FALLBACK_SCAN_ROUTE_TIMEOUT_SECONDS = 10;
 
