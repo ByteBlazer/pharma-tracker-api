@@ -31,6 +31,29 @@ export class BackupService {
   }
 
   /**
+   * Check if AWS credentials are configured
+   */
+  private checkAWSConnection(): void {
+    if (
+      !process.env.AWS_ACCESS_KEY ||
+      process.env.AWS_ACCESS_KEY === "AWS_ACCESS_KEY_PLACEHOLDER"
+    ) {
+      throw new BadRequestException(
+        "AWS credentials not configured. Please configure AWS_ACCESS_KEY in environment variables."
+      );
+    }
+
+    if (
+      !process.env.AWS_SECRET_KEY ||
+      process.env.AWS_SECRET_KEY === "AWS_SECRET_KEY_PLACEHOLDER"
+    ) {
+      throw new BadRequestException(
+        "AWS credentials not configured. Please configure AWS_SECRET_KEY in environment variables."
+      );
+    }
+  }
+
+  /**
    * Create a database backup and upload to S3
    */
   async createBackup(): Promise<{
@@ -40,6 +63,9 @@ export class BackupService {
     statusCode: number;
   }> {
     try {
+      // Check AWS credentials are configured
+      this.checkAWSConnection();
+
       // Check if S3 bucket exists
       await this.checkBucketExists();
 
@@ -126,6 +152,9 @@ export class BackupService {
     statusCode: number;
   }> {
     try {
+      // Check AWS credentials are configured
+      this.checkAWSConnection();
+
       // Check if S3 bucket exists
       await this.checkBucketExists();
 
@@ -180,6 +209,9 @@ export class BackupService {
     statusCode: number;
   }> {
     try {
+      // Check AWS credentials are configured
+      this.checkAWSConnection();
+
       // Validate passkey
       if (passkey !== GlobalConstants.RESTORE_PASSKEY) {
         throw new BadRequestException("Invalid restore passkey");
