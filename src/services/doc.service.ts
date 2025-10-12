@@ -66,16 +66,13 @@ export class DocService {
     // Fetch document details from ERP
     try {
       const response = await axios.get(
-        `https://sit-api.1c2.in:4431/delivery/document`,
+        `${GlobalConstants.ERP_API_BASE_URL}/document`,
         {
           params: {
             doc_id: docId,
             user: loggedInUser.username,
           },
-          headers: {
-            "x-api-prod-code": "DEV-DELCONN",
-            "x-api-token": "f1e069787ece74",
-          },
+          headers: GlobalConstants.ERP_API_HEADERS,
         }
       );
 
@@ -131,7 +128,9 @@ export class DocService {
         case DocStatus.DELIVERED:
           return {
             success: false,
-            message: "Doc ID is already delivered and cannot be scanned again",
+            message:
+              "Doc ID is already delivered and cannot be scanned again for Route " +
+              existingDoc.route,
             docId: docId,
             statusCode: 400, // Bad Request
           };
@@ -139,7 +138,9 @@ export class DocService {
         case DocStatus.TRIP_SCHEDULED:
           return {
             success: false,
-            message: "Doc ID is already scheduled for a trip",
+            message:
+              "Doc ID is already scheduled for a trip for Route " +
+              existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
           };
@@ -147,7 +148,8 @@ export class DocService {
         case DocStatus.ON_TRIP:
           return {
             success: false,
-            message: "Doc ID is already out on a trip",
+            message:
+              "Doc ID is already out on a trip for Route " + existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
           };
@@ -155,7 +157,9 @@ export class DocService {
         case DocStatus.READY_FOR_DISPATCH:
           return {
             success: true,
-            message: "Doc ID re-scanned. Was already in dispatch queue",
+            message:
+              "Doc ID re-scanned. Was already in Queue for Route " +
+              existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
           };
@@ -164,7 +168,9 @@ export class DocService {
           return {
             success: true,
             message:
-              "Scanned and added to Dispatch Queue (previous delivery attempt failed)",
+              "Scanned and added to Queue for Route " +
+              existingDoc.route +
+              " (previous delivery attempt failed)",
             docId: docId,
             statusCode: 200, // OK
           };
@@ -172,7 +178,9 @@ export class DocService {
         case DocStatus.AT_TRANSIT_HUB:
           return {
             success: true,
-            message: "Scanned from transit hub and added to Dispatch Queue",
+            message:
+              "Scanned from transit hub and added to Queue for Route " +
+              existingDoc.route,
             docId: docId,
             statusCode: 200, // OK
           };
@@ -293,7 +301,7 @@ export class DocService {
 
     return {
       success: true,
-      message: "Scanned and added to Dispatch Queue",
+      message: "Scanned and added to Queue for Route " + matchedDoc.routeId,
       docId: docId,
       statusCode: 200, // Created
     };
@@ -511,12 +519,9 @@ export class DocService {
     if (!mockOfMocks) {
       try {
         const response = await axios.get(
-          "https://sit-api.1c2.in:4431/delivery/recent-documents",
+          `${GlobalConstants.ERP_API_BASE_URL}/recent-documents`,
           {
-            headers: {
-              "x-api-prod-code": "DEV-DELCONN",
-              "x-api-token": "f1e069787ece74",
-            },
+            headers: GlobalConstants.ERP_API_HEADERS,
           }
         );
 
