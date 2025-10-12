@@ -16,6 +16,13 @@ export class GlobalConstants {
   // Document grouping constants
   static readonly DIRECT_DELIVERIES_GROUP_HEADING = "Direct Deliveries";
 
+  // Database backup constants
+  static readonly MAX_BACKUP_FILES = 30;
+  static readonly BACKUP_BUCKET_NAME = "pharmatracker-db-dump";
+  static readonly AWS_REGION = "ap-south-1"; // Mumbai
+  static readonly RESTORE_PASSKEY = "RESTORE_DB_PASSKEY_2025"; // Change this to a secure value
+  static readonly BACKUP_RECENT_CHECK_MINUTES = 5;
+
   // Customer data with cities, pincodes, and routes (100 customers)
   static readonly CUSTOMERS = [
     // Route 1 - Ernakulam
