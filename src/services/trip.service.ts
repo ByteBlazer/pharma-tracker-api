@@ -437,11 +437,14 @@ export class TripService {
     await queryRunner.startTransaction();
 
     try {
-      // Update trip status to STARTED
+      // Update trip status to STARTED and set started_at timestamp
       await queryRunner.manager.update(
         Trip,
         { id: tripId },
-        { status: TripStatus.STARTED }
+        {
+          status: TripStatus.STARTED,
+          startedAt: new Date(),
+        }
       );
 
       // Update all associated documents to ON_TRIP status
@@ -1086,6 +1089,7 @@ export class TripService {
       status: trip.status,
       route: associatedDoc?.route || "",
       createdAt: trip.createdAt,
+      startedAt: trip.startedAt,
       lastUpdatedAt: trip.lastUpdatedAt,
       creatorLocation: trip.creator.baseLocation?.name || "",
       driverLocation: trip.driver.baseLocation?.name || "",

@@ -30,6 +30,9 @@ export class Trip {
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
+  @Column({ name: "started_at", type: "timestamp", nullable: true })
+  startedAt: Date;
+
   @UpdateDateColumn({ name: "last_updated_at" })
   lastUpdatedAt: Date;
 

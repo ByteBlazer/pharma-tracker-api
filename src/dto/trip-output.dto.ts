@@ -8,6 +8,7 @@ export class TripOutputDto {
   status: string;
   route: string;
   createdAt: Date;
+  startedAt: Date;
   lastUpdatedAt: Date;
   creatorLocation: string;
   driverLocation: string;
