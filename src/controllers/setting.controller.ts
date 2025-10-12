@@ -79,6 +79,41 @@ export class SettingController {
     }
   }
 
+  @Get("backup/download/:filename")
+  @RequireRoles(UserRole.WEB_ACCESS)
+  async downloadBackup(
+    @Param("filename") filename: string,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      const result = await this.backupService.downloadBackup(filename);
+
+      // Set headers for file download
+      res.set({
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${result.filename}"`,
+        "Content-Length": result.fileBuffer.length,
+      });
+
+      // Send file buffer
+      res.send(result.fileBuffer);
+    } catch (error) {
+      console.log("Error downloading backup:", error);
+      if (error instanceof BadRequestException) {
+        res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Failed to download backup",
+          error: error.message,
+        });
+      }
+    }
+  }
+
   @Post("restore")
   @RequireRoles(UserRole.WEB_ACCESS)
   async restoreBackup(
