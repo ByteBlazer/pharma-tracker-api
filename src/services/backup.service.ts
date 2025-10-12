@@ -292,7 +292,8 @@ export class BackupService {
 
       // Restore from backup using pg_restore
       console.log(`📦 Restoring database from backup...`);
-      const pgRestoreCommand = `PGPASSWORD="${dbConfig.password}" pg_restore -h ${dbConfig.host} -p ${dbConfig.port} -U ${dbConfig.username} -d ${dbConfig.database} -c "${localFilePath}"`;
+      // Note: No -c flag needed since we already dropped and recreated the database
+      const pgRestoreCommand = `PGPASSWORD="${dbConfig.password}" pg_restore -h ${dbConfig.host} -p ${dbConfig.port} -U ${dbConfig.username} -d ${dbConfig.database} "${localFilePath}"`;
       await execPromise(pgRestoreCommand, { timeout: 5 * 60 * 1000 });
 
       console.log(`✅ Database restored successfully from: ${filename}`);
