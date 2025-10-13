@@ -1083,15 +1083,32 @@ export class TripService {
   }
 
   private async populateTripOutputDto(trip: Trip): Promise<TripOutputDto> {
-    // Get driver's last known location (within last 24 hours)
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const driverLastLocation = await this.locationHeartbeatRepository.findOne({
-      where: {
-        appUserId: trip.drivenBy,
-        receivedAt: MoreThanOrEqual(twentyFourHoursAgo),
-      },
-      order: { receivedAt: "DESC" },
-    });
+    let driverLastLocation = null;
+    let driverLastKnownLatitude = "";
+    let driverLastKnownLongitude = "";
+    let driverLastLocationUpdateTime = null;
+
+    // Only populate driver location for STARTED trips
+    if (trip.status === TripStatus.STARTED && trip.startedAt) {
+      // Get driver's location heartbeat that occurred after trip start time minus 1 minute
+      const oneMinuteBeforeStart = new Date(
+        trip.startedAt.getTime() - 60 * 1000
+      );
+
+      driverLastLocation = await this.locationHeartbeatRepository.findOne({
+        where: {
+          appUserId: trip.drivenBy,
+          receivedAt: MoreThanOrEqual(oneMinuteBeforeStart),
+        },
+        order: { receivedAt: "DESC" },
+      });
+
+      if (driverLastLocation) {
+        driverLastKnownLatitude = driverLastLocation.geoLatitude || "";
+        driverLastKnownLongitude = driverLastLocation.geoLongitude || "";
+        driverLastLocationUpdateTime = driverLastLocation.receivedAt;
+      }
+    }
 
     return {
       tripId: trip.id,
@@ -1107,10 +1124,10 @@ export class TripService {
       lastUpdatedAt: trip.lastUpdatedAt,
       creatorLocation: trip.creator.baseLocation?.name || "",
       driverLocation: trip.driver.baseLocation?.name || "",
-      // Driver's last known location
-      driverLastKnownLatitude: driverLastLocation?.geoLatitude || "",
-      driverLastKnownLongitude: driverLastLocation?.geoLongitude || "",
-      driverLastLocationUpdateTime: driverLastLocation?.receivedAt || null,
+      // Driver's last known location (only for STARTED trips)
+      driverLastKnownLatitude: driverLastKnownLatitude,
+      driverLastKnownLongitude: driverLastKnownLongitude,
+      driverLastLocationUpdateTime: driverLastLocationUpdateTime,
     };
   }
 
