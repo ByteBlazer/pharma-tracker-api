@@ -89,6 +89,9 @@ export class SettingService {
       case SettingEnum.DEFAULT_GREETING:
         this.validateDefaultGreeting(settingName, settingValue);
         break;
+      case SettingEnum.UPDATE_DOC_STATUS_TO_ERP:
+        this.validateBooleanSetting(settingName, settingValue);
+        break;
       default:
         throw new BadRequestException(`Unknown setting name: ${settingName}`);
     }
@@ -119,6 +122,15 @@ export class SettingService {
     if (typeof value !== "string" || value.length < 5) {
       throw new BadRequestException(
         `${settingName} must be a string with at least 5 characters`
+      );
+    }
+  }
+
+  private validateBooleanSetting(settingName: string, value: string): void {
+    const lowerValue = value.toLowerCase();
+    if (lowerValue !== "true" && lowerValue !== "false") {
+      throw new BadRequestException(
+        `${settingName} must be either 'true' or 'false'`
       );
     }
   }

@@ -24,6 +24,9 @@ export class Trip {
   @Column({ name: "vehicle_nbr", type: "varchar", length: 25 })
   vehicleNbr: string;
 
+  @Column({ name: "route", type: "varchar", length: 100 })
+  route: string;
+
   @Column({ name: "status", type: "enum", enum: TripStatus })
   status: TripStatus;
 

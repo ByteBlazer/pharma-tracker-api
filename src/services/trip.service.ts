@@ -92,6 +92,7 @@ export class TripService {
         createdBy: loggedInUser.id,
         drivenBy: driverId,
         vehicleNbr: vehicleNumber,
+        route: route,
         status: TripStatus.SCHEDULED,
       });
 
@@ -1063,12 +1064,6 @@ export class TripService {
   }
 
   private async populateTripOutputDto(trip: Trip): Promise<TripOutputDto> {
-    // Get route from one of the associated documents
-    const associatedDoc = await this.docRepository.findOne({
-      where: { tripId: trip.id },
-      select: { route: true },
-    });
-
     // Get driver's last known location (within last 24 hours)
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const driverLastLocation = await this.locationHeartbeatRepository.findOne({
@@ -1087,7 +1082,7 @@ export class TripService {
       driverId: trip.drivenBy,
       vehicleNumber: trip.vehicleNbr,
       status: trip.status,
-      route: associatedDoc?.route || "",
+      route: trip.route,
       createdAt: trip.createdAt,
       startedAt: trip.startedAt,
       lastUpdatedAt: trip.lastUpdatedAt,
