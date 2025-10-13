@@ -925,7 +925,6 @@ export class DocService {
         break;
 
       case DocStatus.ON_TRIP:
-      case DocStatus.AT_TRANSIT_HUB:
         // Get trip information
         const trip = await this.tripRepository.findOne({
           where: { id: doc.tripId },
@@ -980,6 +979,32 @@ export class DocService {
             }
           }
         }
+        break;
+
+      case DocStatus.AT_TRANSIT_HUB:
+        // Add customer location if available
+        if (
+          doc.customer &&
+          doc.customer.geoLatitude &&
+          doc.customer.geoLongitude
+        ) {
+          response.customerLocation = {
+            latitude: doc.customer.geoLatitude,
+            longitude: doc.customer.geoLongitude,
+          };
+        }
+
+        // Use transit hub coordinates as driver's last known location
+        if (doc.transitHubLatitude && doc.transitHubLongitude) {
+          response.driverLastKnownLocation = {
+            latitude: doc.transitHubLatitude,
+            longitude: doc.transitHubLongitude,
+            receivedAt: undefined, // Transit hub coordinates don't have a timestamp
+          };
+        }
+
+        // No otherCustomersServiceTime calculation for transit hub status
+        // since the document is not on an active trip
         break;
 
       default:
