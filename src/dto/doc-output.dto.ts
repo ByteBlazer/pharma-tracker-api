@@ -10,6 +10,8 @@ export class DocOutputDto {
   lot: string;
   comment: string;
   customerId: string;
+  transitHubLatitude: string;
+  transitHubLongitude: string;
   createdAt: Date;
   lastUpdatedAt: Date;
   // Customer fields

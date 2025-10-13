@@ -68,6 +68,14 @@ export class SettingsCacheService implements OnModuleInit {
     return value || "Hello From Pharma Tracker";
   }
 
+  getUpdateDocStatusToErp(): boolean {
+    const value = this.getSetting(SettingEnum.UPDATE_DOC_STATUS_TO_ERP);
+    if (value) {
+      return value.toLowerCase() === "true";
+    }
+    return false; // Default to false if not set
+  }
+
   // Method to update a specific setting in cache (called when setting is updated)
   updateSettingInCache(settingName: string, settingValue: string): void {
     this.settingsCache.set(settingName, settingValue);
