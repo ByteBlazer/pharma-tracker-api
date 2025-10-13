@@ -7,7 +7,16 @@ import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { DataSource, In, Like, MoreThan, Not, Repository } from "typeorm";
+import { TripStatus } from "src/enums/trip-status.enum";
+import {
+  DataSource,
+  In,
+  Like,
+  MoreThan,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from "typeorm";
 import axios from "axios";
 
 import { GlobalConstants } from "src/GlobalConstants";
@@ -955,28 +964,30 @@ export class DocService {
         });
 
         if (trip) {
-          // Check if trip started within last 48 hours
-          const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+          // Add customer location if available
+          if (
+            doc.customer &&
+            doc.customer.geoLatitude &&
+            doc.customer.geoLongitude
+          ) {
+            response.customerLocation = {
+              latitude: doc.customer.geoLatitude,
+              longitude: doc.customer.geoLongitude,
+            };
+          }
 
-          if (trip.createdAt >= fortyEightHoursAgo) {
-            // Add customer location if available
-            if (
-              doc.customer &&
-              doc.customer.geoLatitude &&
-              doc.customer.geoLongitude
-            ) {
-              response.customerLocation = {
-                latitude: doc.customer.geoLatitude,
-                longitude: doc.customer.geoLongitude,
-              };
-            }
+          // Only get driver location for STARTED trips
+          if (trip.status === TripStatus.STARTED && trip.startedAt) {
+            // Get driver's location heartbeat that occurred after trip start time minus 1 minute
+            const oneMinuteBeforeStart = new Date(
+              trip.startedAt.getTime() - 60 * 1000
+            );
 
-            // Get driver's last known location in the last 48 hours
             const driverLocation =
               await this.locationHeartbeatRepository.findOne({
                 where: {
                   appUserId: trip.drivenBy,
-                  receivedAt: MoreThan(fortyEightHoursAgo),
+                  receivedAt: MoreThanOrEqual(oneMinuteBeforeStart),
                 },
                 order: {
                   receivedAt: "DESC",
@@ -1001,6 +1012,9 @@ export class DocService {
               // Driver location not available
               response.otherCustomersServiceTime = undefined;
             }
+          } else {
+            // Trip not started or ended - no driver location
+            response.otherCustomersServiceTime = undefined;
           }
         }
         break;
