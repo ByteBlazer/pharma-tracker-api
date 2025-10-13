@@ -642,7 +642,7 @@ export class DocService {
     mockDocs: any[],
     mockOfMocks: boolean
   ): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
         const buffers: Buffer[] = [];
@@ -670,7 +670,8 @@ export class DocService {
           const cellWidth = pageWidth / 2;
           const cellHeight = pageHeight / 2;
 
-          pageDocs.forEach((docData, gridIndex) => {
+          for (let gridIndex = 0; gridIndex < pageDocs.length; gridIndex++) {
+            const docData = pageDocs[gridIndex];
             const row = Math.floor(gridIndex / 2);
             const col = gridIndex % 2;
 
@@ -708,6 +709,36 @@ export class DocService {
                 .text(`Amount: Rs. ${docData.docAmount}`)
                 .text(`Status: ${docData.status || "Blank"}`)
                 .moveDown(0.3);
+            } else {
+              //Call the ERP API to get the document details
+              try {
+                const response = await axios.get(
+                  `${GlobalConstants.ERP_API_BASE_URL}/document`,
+                  {
+                    params: {
+                      doc_id: docData.docId,
+                      user: "mock-admin",
+                    },
+                    headers: GlobalConstants.ERP_API_HEADERS,
+                  }
+                );
+
+                doc
+                  .fontSize(8)
+                  .text(`Customer: ${response.data.customerName || "N/A"}`)
+                  .text(`Phone: ${response.data.customerPhone || "N/A"}`)
+                  .text(`Route: ${response.data.routeName || "N/A"}`)
+                  .text(`Lot: ${response.data.lotNbr || "N/A"}`)
+                  .text(`Date: ${response.data.invoiceDate || "N/A"}`)
+                  .text(`Amount: Rs. ${response.data.invoiceAmount || "N/A"}`)
+                  .text(`Status: ${response.data.status || "N/A"}`)
+                  .moveDown(0.3);
+              } catch (error) {
+                console.error(
+                  "Unable to hit ERP API, so showing only barcode image " +
+                    error
+                );
+              }
             }
 
             // Generate barcode
@@ -727,7 +758,7 @@ export class DocService {
 
             // Restore position
             doc.restore();
-          });
+          }
         }
 
         doc.end();

@@ -9,8 +9,6 @@ export class GlobalConstants {
 
   // ERP API Configuration
   static readonly ERP_API_BASE_URL = "https://sit-api.1c2.in:4431/delivery";
-  static readonly ERP_API_PROD_CODE = "DEV-DELCONN";
-  static readonly ERP_API_TOKEN = "f1e069787ece74";
   static readonly ERP_API_HEADERS = {
     "x-api-prod-code": "DEV-DELCONN",
     "x-api-token": "f1e069787ece74",
