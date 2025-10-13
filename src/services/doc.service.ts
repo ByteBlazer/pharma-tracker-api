@@ -121,9 +121,7 @@ export class DocService {
         existingDoc.lastScannedBy = loggedInUser.id;
         existingDoc.lastUpdatedAt = new Date();
         existingDoc.status = DocStatus.READY_FOR_DISPATCH;
-        // Clear transit hub coordinates when moving to READY_FOR_DISPATCH
-        existingDoc.transitHubLatitude = null;
-        existingDoc.transitHubLongitude = null;
+
         await this.docRepository.save(existingDoc);
       }
 
@@ -644,7 +642,7 @@ export class DocService {
     mockDocs: any[],
     mockOfMocks: boolean
   ): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
         const buffers: Buffer[] = [];
@@ -672,7 +670,8 @@ export class DocService {
           const cellWidth = pageWidth / 2;
           const cellHeight = pageHeight / 2;
 
-          pageDocs.forEach((docData, gridIndex) => {
+          for (let gridIndex = 0; gridIndex < pageDocs.length; gridIndex++) {
+            const docData = pageDocs[gridIndex];
             const row = Math.floor(gridIndex / 2);
             const col = gridIndex % 2;
 
@@ -710,6 +709,36 @@ export class DocService {
                 .text(`Amount: Rs. ${docData.docAmount}`)
                 .text(`Status: ${docData.status || "Blank"}`)
                 .moveDown(0.3);
+            } else {
+              //Call the ERP API to get the document details
+              try {
+                const response = await axios.get(
+                  `${GlobalConstants.ERP_API_BASE_URL}/document`,
+                  {
+                    params: {
+                      doc_id: docData.docId,
+                      user: "mock-admin",
+                    },
+                    headers: GlobalConstants.ERP_API_HEADERS,
+                  }
+                );
+
+                doc
+                  .fontSize(8)
+                  .text(`Customer: ${response.data.customerName || "N/A"}`)
+                  .text(`Phone: ${response.data.customerPhone || "N/A"}`)
+                  .text(`Route: ${response.data.routeName || "N/A"}`)
+                  .text(`Lot: ${response.data.lotNbr || "N/A"}`)
+                  .text(`Date: ${response.data.invoiceDate || "N/A"}`)
+                  .text(`Amount: Rs. ${response.data.invoiceAmount || "N/A"}`)
+                  .text(`Status: ${response.data.status || "N/A"}`)
+                  .moveDown(0.3);
+              } catch (error) {
+                console.error(
+                  "Unable to hit ERP API, so showing only barcode image " +
+                    error
+                );
+              }
             }
 
             // Generate barcode
@@ -729,7 +758,7 @@ export class DocService {
 
             // Restore position
             doc.restore();
-          });
+          }
         }
 
         doc.end();
@@ -901,11 +930,6 @@ export class DocService {
 
     // Handle different statuses
     switch (doc.status) {
-      case DocStatus.READY_FOR_DISPATCH:
-      case DocStatus.TRIP_SCHEDULED:
-        // Just return the status
-        break;
-
       case DocStatus.DELIVERED:
         // Return status, comment, and delivery timestamp from signature
         response.comment = doc.comment;
@@ -982,6 +1006,8 @@ export class DocService {
         break;
 
       case DocStatus.AT_TRANSIT_HUB:
+      case DocStatus.READY_FOR_DISPATCH:
+      case DocStatus.TRIP_SCHEDULED:
         // Add customer location if available
         if (
           doc.customer &&
