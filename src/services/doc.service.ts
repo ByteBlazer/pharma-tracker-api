@@ -121,9 +121,7 @@ export class DocService {
         existingDoc.lastScannedBy = loggedInUser.id;
         existingDoc.lastUpdatedAt = new Date();
         existingDoc.status = DocStatus.READY_FOR_DISPATCH;
-        // Clear transit hub coordinates when moving to READY_FOR_DISPATCH
-        existingDoc.transitHubLatitude = null;
-        existingDoc.transitHubLongitude = null;
+
         await this.docRepository.save(existingDoc);
       }
 
@@ -901,11 +899,6 @@ export class DocService {
 
     // Handle different statuses
     switch (doc.status) {
-      case DocStatus.READY_FOR_DISPATCH:
-      case DocStatus.TRIP_SCHEDULED:
-        // Just return the status
-        break;
-
       case DocStatus.DELIVERED:
         // Return status, comment, and delivery timestamp from signature
         response.comment = doc.comment;
@@ -982,6 +975,8 @@ export class DocService {
         break;
 
       case DocStatus.AT_TRANSIT_HUB:
+      case DocStatus.READY_FOR_DISPATCH:
+      case DocStatus.TRIP_SCHEDULED:
         // Add customer location if available
         if (
           doc.customer &&
