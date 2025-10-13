@@ -19,6 +19,9 @@ build/
 logs
 *.log
 
+#VS Code Counter files
+.VSCodeCounter/
+
 # Runtime data
 pids
 *.pid
