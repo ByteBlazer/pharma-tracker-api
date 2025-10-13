@@ -41,6 +41,22 @@ export class Doc {
   @Column({ name: "customer_id", type: "varchar", length: 50 })
   customerId: string;
 
+  @Column({
+    name: "transit_hub_latitude",
+    type: "varchar",
+    length: 20,
+    nullable: true,
+  })
+  transitHubLatitude: string;
+
+  @Column({
+    name: "transit_hub_longitude",
+    type: "varchar",
+    length: 20,
+    nullable: true,
+  })
+  transitHubLongitude: string;
+
   @Column({ name: "created_at", type: "timestamp", default: () => "NOW()" })
   createdAt: Date;
 

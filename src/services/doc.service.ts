@@ -107,6 +107,7 @@ export class DocService {
       if (docFromErp) {
         //TODO: If existing doc and existing doc status does not equals delivered, and ERP status is delivered,then return a custom error message.
         //Flip our DB too.
+        //Also update lot
       }
 
       const previousDocStatus = existingDoc.status;
@@ -120,6 +121,9 @@ export class DocService {
         existingDoc.lastScannedBy = loggedInUser.id;
         existingDoc.lastUpdatedAt = new Date();
         existingDoc.status = DocStatus.READY_FOR_DISPATCH;
+        // Clear transit hub coordinates when moving to READY_FOR_DISPATCH
+        existingDoc.transitHubLatitude = null;
+        existingDoc.transitHubLongitude = null;
         await this.docRepository.save(existingDoc);
       }
 

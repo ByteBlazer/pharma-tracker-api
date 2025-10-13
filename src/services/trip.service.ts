@@ -358,6 +358,8 @@ export class TripService {
           {
             status: DocStatus.READY_FOR_DISPATCH,
             tripId: null,
+            transitHubLatitude: null,
+            transitHubLongitude: null,
           }
         );
       }
@@ -585,6 +587,8 @@ export class TripService {
             lot: doc.lot,
             comment: doc.comment || "",
             customerId: doc.customerId,
+            transitHubLatitude: doc.transitHubLatitude || "",
+            transitHubLongitude: doc.transitHubLongitude || "",
             createdAt: doc.createdAt,
             lastUpdatedAt: doc.lastUpdatedAt,
             // Customer fields
@@ -922,12 +926,30 @@ export class TripService {
       );
     }
 
+    // Get driver's last known location
+    const driverLastLocation = await this.locationHeartbeatRepository.findOne({
+      where: { appUserId: trip.drivenBy },
+      order: { receivedAt: "DESC" },
+    });
+
     // Start transaction to ensure atomicity
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
+      // Prepare update data - populate coordinates if available
+      const updateData: any = {
+        status: DocStatus.AT_TRANSIT_HUB,
+        tripId: null,
+      };
+
+      // Add driver's location if available
+      if (driverLastLocation) {
+        updateData.transitHubLatitude = driverLastLocation.geoLatitude;
+        updateData.transitHubLongitude = driverLastLocation.geoLongitude;
+      }
+
       // Update all documents with the specified lot to AT_TRANSIT_HUB status
       // Only update if current status is ON_TRIP
       // Remove tripId as document is no longer part of active trip
@@ -938,10 +960,7 @@ export class TripService {
           lot: lotHeading,
           status: DocStatus.ON_TRIP,
         },
-        {
-          status: DocStatus.AT_TRANSIT_HUB,
-          tripId: null,
-        }
+        updateData
       );
 
       await queryRunner.commitTransaction();
