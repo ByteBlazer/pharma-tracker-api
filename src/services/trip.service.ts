@@ -972,7 +972,7 @@ export class TripService {
         docsToUpdate.map((doc) =>
           axios
             .post(
-              `${GlobalConstants.ERP_API_BASE_URL}/document/status`,
+              `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
               {
                 docId: doc.id,
                 status: DocStatus.AT_TRANSIT_HUB,

@@ -16,6 +16,10 @@ export class GlobalConstants {
     "x-api-prod-code": "DEV-DELCONN",
     "x-api-token": "f1e069787ece74",
   };
+
+  static readonly ERP_API_STATUS_UPDATE_HOOK_URL =
+    this.ERP_API_BASE_URL + "/document/status";
+
   static readonly FALLBACK_LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS = 60;
   static readonly FALLBACK_SCAN_ROUTE_TIMEOUT_SECONDS = 10;
 
