@@ -114,9 +114,21 @@ export class DocService {
     });
     if (existingDoc) {
       if (docFromErp) {
+        let dbUpdateRequiredBecauseOfErpMismatch = false;
         //TODO: If existing doc and existing doc status does not equals delivered, and ERP status is delivered,then return a custom error message.
-        //Flip our DB too.
-        //Also update lot
+        if (docFromErp.status === DocStatus.DELIVERED) {
+          if (existingDoc.status !== DocStatus.DELIVERED) {
+            existingDoc.status = DocStatus.DELIVERED;
+            dbUpdateRequiredBecauseOfErpMismatch = true;
+          }
+        }
+        if (existingDoc.lot !== docFromErp.lotNbr) {
+          existingDoc.lot = docFromErp.lotNbr;
+          dbUpdateRequiredBecauseOfErpMismatch = true;
+        }
+        if (dbUpdateRequiredBecauseOfErpMismatch) {
+          await this.docRepository.save(existingDoc);
+        }
       }
 
       const previousDocStatus = existingDoc.status;
