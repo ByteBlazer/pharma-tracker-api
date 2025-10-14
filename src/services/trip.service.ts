@@ -19,6 +19,7 @@ import { UserRole } from "../enums/user-role.enum";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { AvailableDriver } from "../interfaces/available-driver.interface";
 import { GlobalConstants } from "../GlobalConstants";
+import axios from "axios";
 
 @Injectable()
 export class TripService {
@@ -964,6 +965,30 @@ export class TripService {
       );
 
       await queryRunner.commitTransaction();
+
+      // The ERP API only accepts a single docId, so send the request one by one for each doc.
+      // Fire off all ERP API requests in parallel; don't await for each to finish
+      void Promise.all(
+        docsToUpdate.map((doc) =>
+          axios
+            .post(
+              `${GlobalConstants.ERP_API_BASE_URL}/document/status`,
+              {
+                docId: doc.id,
+                status: DocStatus.AT_TRANSIT_HUB,
+                userId: loggedInUser.id,
+              },
+              { headers: GlobalConstants.ERP_API_HEADERS }
+            )
+            .catch((e) => {
+              // Optionally log error here; errors won't block main flow
+              console.error(
+                `Failed to update doc ${doc.id} with status ${DocStatus.AT_TRANSIT_HUB} at ERP API:`,
+                e
+              );
+            })
+        )
+      );
 
       return {
         success: true,
