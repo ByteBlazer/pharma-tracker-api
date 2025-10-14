@@ -192,10 +192,15 @@ export class DocController {
   async markDelivery(
     @Param("docId") docId: string,
     @Body() markDeliveryDto: MarkDeliveryDto,
+    @LoggedInUser() loggedInUser: JwtPayload,
     @Res() res: Response
   ): Promise<void> {
     try {
-      const result = await this.docService.markDelivery(docId, markDeliveryDto);
+      const result = await this.docService.markDelivery(
+        docId,
+        markDeliveryDto,
+        loggedInUser
+      );
 
       res.status(result.statusCode).json({
         success: result.success,
@@ -225,12 +230,14 @@ export class DocController {
   async markDeliveryFailed(
     @Param("docId") docId: string,
     @Body() markDeliveryFailedDto: MarkDeliveryFailedDto,
+    @LoggedInUser() loggedInUser: JwtPayload,
     @Res() res: Response
   ): Promise<void> {
     try {
       const result = await this.docService.markDeliveryFailed(
         docId,
-        markDeliveryFailedDto
+        markDeliveryFailedDto,
+        loggedInUser
       );
 
       res.status(result.statusCode).json({

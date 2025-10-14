@@ -113,6 +113,30 @@ export class TripService {
 
       await queryRunner.commitTransaction();
 
+      // Update ERP with TRIP_SCHEDULED status for all documents (non-blocking)
+      if (documentsToLoad.length > 0) {
+        void Promise.all(
+          documentsToLoad.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.TRIP_SCHEDULED,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.TRIP_SCHEDULED} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
+
       return {
         success: true,
         message: `Trip created successfully with ${documentsToLoad.length} documents loaded.`,
@@ -367,6 +391,30 @@ export class TripService {
 
       await queryRunner.commitTransaction();
 
+      // Update ERP with READY_FOR_DISPATCH status for all cancelled documents (non-blocking)
+      if (associatedDocs.length > 0) {
+        void Promise.all(
+          associatedDocs.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.READY_FOR_DISPATCH,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
+
       return {
         success: true,
         message: `Trip ${tripId} has been cancelled successfully. ${associatedDocs.length} document(s) have been moved back to READY_FOR_DISPATCH status.`,
@@ -459,6 +507,30 @@ export class TripService {
       );
 
       await queryRunner.commitTransaction();
+
+      // Update ERP with ON_TRIP status for all associated documents (non-blocking)
+      if (associatedDocs.length > 0) {
+        void Promise.all(
+          associatedDocs.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.ON_TRIP,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.ON_TRIP} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
 
       return {
         success: true,
@@ -861,6 +933,31 @@ export class TripService {
       );
 
       await queryRunner.commitTransaction();
+
+      // The ERP API only accepts a single docId, so send the request one by one for each doc.
+      // Fire off all ERP API requests in parallel; don't await for each to finish
+      if (docsToMarkUndelivered.length > 0) {
+        void Promise.all(
+          docsToMarkUndelivered.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.UNDELIVERED,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.UNDELIVERED} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
 
       return {
         success: true,
