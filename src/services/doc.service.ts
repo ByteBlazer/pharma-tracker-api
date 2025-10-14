@@ -144,6 +144,26 @@ export class DocService {
         existingDoc.status = DocStatus.READY_FOR_DISPATCH;
 
         await this.docRepository.save(existingDoc);
+
+        // Update ERP with READY_FOR_DISPATCH status for existing document re-scan (non-blocking)
+        if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+          void axios
+            .post(
+              `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+              {
+                docId: docId,
+                status: DocStatus.READY_FOR_DISPATCH,
+                userId: loggedInUser.id,
+              },
+              { headers: GlobalConstants.ERP_API_HEADERS }
+            )
+            .catch((e) => {
+              console.error(
+                `Failed to update doc ${docId} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
+                e
+              );
+            });
+        }
       }
 
       // Handle different document statuses
@@ -320,6 +340,26 @@ export class DocService {
         docId: docId,
         statusCode: 500, // Internal Server Error
       };
+    }
+
+    // Update ERP with READY_FOR_DISPATCH status for new document (non-blocking)
+    if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+      void axios
+        .post(
+          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          {
+            docId: docId,
+            status: DocStatus.READY_FOR_DISPATCH,
+            userId: loggedInUser.id,
+          },
+          { headers: GlobalConstants.ERP_API_HEADERS }
+        )
+        .catch((e) => {
+          console.error(
+            `Failed to update doc ${docId} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
+            e
+          );
+        });
     }
 
     return {
@@ -791,7 +831,8 @@ export class DocService {
 
   async markDelivery(
     docId: string,
-    markDeliveryDto: MarkDeliveryDto
+    markDeliveryDto: MarkDeliveryDto,
+    loggedInUser: JwtPayload
   ): Promise<{
     success: boolean;
     message: string;
@@ -817,7 +858,7 @@ export class DocService {
     }
 
     // Use transaction for data consistency
-    return await this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       // Mark as delivered
       await manager.update(Doc, docId, {
         status: DocStatus.DELIVERED,
@@ -870,11 +911,34 @@ export class DocService {
         statusCode: 200,
       };
     });
+
+    // Update ERP with DELIVERED status (non-blocking)
+    if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+      void axios
+        .post(
+          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          {
+            docId: docId,
+            status: DocStatus.DELIVERED,
+            userId: loggedInUser.id,
+          },
+          { headers: GlobalConstants.ERP_API_HEADERS }
+        )
+        .catch((e) => {
+          console.error(
+            `Failed to update doc ${docId} with status ${DocStatus.DELIVERED} at ERP API:`,
+            e
+          );
+        });
+    }
+
+    return result;
   }
 
   async markDeliveryFailed(
     docId: string,
-    markDeliveryFailedDto: MarkDeliveryFailedDto
+    markDeliveryFailedDto: MarkDeliveryFailedDto,
+    loggedInUser: JwtPayload
   ): Promise<{
     success: boolean;
     message: string;
@@ -898,6 +962,26 @@ export class DocService {
       lastUpdatedAt: new Date(),
       comment: markDeliveryFailedDto.failureComment,
     });
+
+    // Update ERP with UNDELIVERED status (non-blocking)
+    if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+      void axios
+        .post(
+          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          {
+            docId: docId,
+            status: DocStatus.UNDELIVERED,
+            userId: loggedInUser.id,
+          },
+          { headers: GlobalConstants.ERP_API_HEADERS }
+        )
+        .catch((e) => {
+          console.error(
+            `Failed to update doc ${docId} with status ${DocStatus.UNDELIVERED} at ERP API:`,
+            e
+          );
+        });
+    }
 
     return {
       success: true,
