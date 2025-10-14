@@ -7,6 +7,9 @@ export class GlobalConstants {
     "https://2factor.in/API/R1/?module=TRANS_SMS&apikey={apikey}&to={recipientMobileNumber}&from=BTBLZR&templatename={smsTemplateName}";
   static readonly SMS_OTP_TEMPLATE = "PHARMA_OTP_V6";
 
+  static readonly GOOGLE_MAPS_API_KEY =
+    "AIzaSyB-M95qSZan9nDkd1kcg7HYhTjG8gwd2FE";
+
   // ERP API Configuration
   static readonly ERP_API_BASE_URL = "https://sit-api.1c2.in:4431/delivery";
   static readonly ERP_API_HEADERS = {

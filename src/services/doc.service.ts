@@ -1008,6 +1008,22 @@ export class DocService {
                   trip,
                   driverLocation
                 );
+
+              // Calculate ETA if both customer and driver locations are available
+              if (
+                doc.customer &&
+                doc.customer.geoLatitude &&
+                doc.customer.geoLongitude &&
+                driverLocation.geoLatitude &&
+                driverLocation.geoLongitude
+              ) {
+                response.eta = await this.calculateETA(
+                  driverLocation.geoLatitude,
+                  driverLocation.geoLongitude,
+                  doc.customer.geoLatitude,
+                  doc.customer.geoLongitude
+                );
+              }
             } else {
               // Driver location not available
               response.otherCustomersServiceTime = undefined;
@@ -1041,6 +1057,22 @@ export class DocService {
             longitude: doc.transitHubLongitude,
             receivedAt: undefined, // Transit hub coordinates don't have a timestamp
           };
+
+          // Calculate ETA if both customer and transit hub locations are available
+          if (
+            doc.customer &&
+            doc.customer.geoLatitude &&
+            doc.customer.geoLongitude &&
+            doc.transitHubLatitude &&
+            doc.transitHubLongitude
+          ) {
+            response.eta = await this.calculateETA(
+              doc.transitHubLatitude,
+              doc.transitHubLongitude,
+              doc.customer.geoLatitude,
+              doc.customer.geoLongitude
+            );
+          }
         }
 
         // No otherCustomersServiceTime calculation for transit hub status
@@ -1050,6 +1082,11 @@ export class DocService {
       default:
         // Unknown status, just return the status
         break;
+    }
+
+    // If no ETA was calculated in any of the status cases, set it to -1
+    if (response.eta === undefined) {
+      response.eta = -1;
     }
 
     return response;
@@ -1175,5 +1212,45 @@ export class DocService {
 
   private toRadians(degrees: number): number {
     return degrees * (Math.PI / 180);
+  }
+
+  private async calculateETA(
+    driverLatitude: string,
+    driverLongitude: string,
+    customerLatitude: string,
+    customerLongitude: string
+  ): Promise<number> {
+    try {
+      const response = await axios.get(
+        "https://maps.googleapis.com/maps/api/distancematrix/json",
+        {
+          params: {
+            origins: `${driverLatitude},${driverLongitude}`,
+            destinations: `${customerLatitude},${customerLongitude}`,
+            departure_time: "now", // Use current time for traffic conditions
+            traffic_model: "best_guess", // Consider traffic conditions
+            key: GlobalConstants.GOOGLE_MAPS_API_KEY,
+          },
+        }
+      );
+
+      if (response.data.status === "OK" && response.data.rows.length > 0) {
+        const element = response.data.rows[0].elements[0];
+
+        if (element.status === "OK") {
+          // Return duration in traffic in minutes
+          const durationInSeconds =
+            element.duration_in_traffic?.value || element.duration?.value;
+          if (durationInSeconds) {
+            return Math.ceil(durationInSeconds / 60); // Convert to minutes and round up
+          }
+        }
+      }
+
+      return -1;
+    } catch (error) {
+      console.error("Error calculating ETA with Google Maps:", error);
+      return -1;
+    }
   }
 }

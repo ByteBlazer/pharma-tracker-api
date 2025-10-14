@@ -14,4 +14,5 @@ export class DocTrackingResponseDto {
     receivedAt: Date;
   };
   otherCustomersServiceTime?: number; // in minutes
+  eta?: number; // Estimated time of arrival in minutes
 }
