@@ -13,5 +13,7 @@ export class DocTrackingResponseDto {
     longitude: string;
     receivedAt: Date;
   };
-  otherCustomersServiceTime?: number; // in minutes
+  enrouteCustomersServiceTime?: number; // in minutes
+  numEnrouteCustomers?: number; // Number of customers nearer than current customer
+  eta?: number; // Estimated time of arrival in minutes
 }

@@ -7,7 +7,16 @@ import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { DataSource, In, Like, MoreThan, Not, Repository } from "typeorm";
+import { TripStatus } from "src/enums/trip-status.enum";
+import {
+  DataSource,
+  In,
+  Like,
+  MoreThan,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from "typeorm";
 import axios from "axios";
 
 import { GlobalConstants } from "src/GlobalConstants";
@@ -955,28 +964,30 @@ export class DocService {
         });
 
         if (trip) {
-          // Check if trip started within last 48 hours
-          const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+          // Add customer location if available
+          if (
+            doc.customer &&
+            doc.customer.geoLatitude &&
+            doc.customer.geoLongitude
+          ) {
+            response.customerLocation = {
+              latitude: doc.customer.geoLatitude,
+              longitude: doc.customer.geoLongitude,
+            };
+          }
 
-          if (trip.createdAt >= fortyEightHoursAgo) {
-            // Add customer location if available
-            if (
-              doc.customer &&
-              doc.customer.geoLatitude &&
-              doc.customer.geoLongitude
-            ) {
-              response.customerLocation = {
-                latitude: doc.customer.geoLatitude,
-                longitude: doc.customer.geoLongitude,
-              };
-            }
+          // Only get driver location for STARTED trips
+          if (trip.status === TripStatus.STARTED && trip.startedAt) {
+            // Get driver's location heartbeat that occurred after trip start time minus 1 minute
+            const oneMinuteBeforeStart = new Date(
+              trip.startedAt.getTime() - 60 * 1000
+            );
 
-            // Get driver's last known location in the last 48 hours
             const driverLocation =
               await this.locationHeartbeatRepository.findOne({
                 where: {
                   appUserId: trip.drivenBy,
-                  receivedAt: MoreThan(fortyEightHoursAgo),
+                  receivedAt: MoreThanOrEqual(oneMinuteBeforeStart),
                 },
                 order: {
                   receivedAt: "DESC",
@@ -990,17 +1001,42 @@ export class DocService {
                 receivedAt: driverLocation.receivedAt,
               };
 
-              // Calculate otherCustomersServiceTime
-              response.otherCustomersServiceTime =
-                await this.calculateOtherCustomersServiceTime(
+              // Calculate enrouteCustomersServiceTime and numEnrouteCustomers
+              const enrouteCustomersInfo =
+                await this.calculateEnrouteCustomersInfo(
                   doc,
                   trip,
                   driverLocation
                 );
+              response.enrouteCustomersServiceTime =
+                enrouteCustomersInfo.serviceTime;
+              response.numEnrouteCustomers =
+                enrouteCustomersInfo.numEnrouteCustomers;
+
+              // Calculate ETA if both customer and driver locations are available
+              if (
+                doc.customer &&
+                doc.customer.geoLatitude &&
+                doc.customer.geoLongitude &&
+                driverLocation.geoLatitude &&
+                driverLocation.geoLongitude
+              ) {
+                response.eta = await this.calculateETA(
+                  driverLocation.geoLatitude,
+                  driverLocation.geoLongitude,
+                  doc.customer.geoLatitude,
+                  doc.customer.geoLongitude
+                );
+              }
             } else {
               // Driver location not available
-              response.otherCustomersServiceTime = undefined;
+              response.enrouteCustomersServiceTime = undefined;
+              response.numEnrouteCustomers = undefined;
             }
+          } else {
+            // Trip not started or ended - no driver location
+            response.enrouteCustomersServiceTime = undefined;
+            response.numEnrouteCustomers = undefined;
           }
         }
         break;
@@ -1029,7 +1065,7 @@ export class DocService {
           };
         }
 
-        // No otherCustomersServiceTime calculation for transit hub status
+        // No enrouteCustomersServiceTime or ETA calculation for transit hub status
         // since the document is not on an active trip
         break;
 
@@ -1038,14 +1074,27 @@ export class DocService {
         break;
     }
 
+    // If no ETA was calculated in any of the status cases, set it to -1
+    if (response.eta === undefined) {
+      response.eta = -1;
+    }
+
+    // If no numEnrouteCustomers was calculated in any of the status cases, set it to -1
+    if (response.numEnrouteCustomers === undefined) {
+      response.numEnrouteCustomers = -1;
+    }
+
     return response;
   }
 
-  private async calculateOtherCustomersServiceTime(
+  private async calculateEnrouteCustomersInfo(
     currentDoc: Doc,
     trip: Trip,
     driverLocation: LocationHeartbeat
-  ): Promise<number | undefined> {
+  ): Promise<{
+    serviceTime: number | undefined;
+    numEnrouteCustomers: number | undefined;
+  }> {
     try {
       // Check if current document's customer has location
       if (
@@ -1053,11 +1102,11 @@ export class DocService {
         !currentDoc.customer.geoLatitude ||
         !currentDoc.customer.geoLongitude
       ) {
-        return undefined; // Current customer has no location
+        return { serviceTime: undefined, numEnrouteCustomers: undefined }; // Current customer has no location
       }
 
       // Get all other documents in the same trip with ON_TRIP status only
-      const otherDocs = await this.docRepository.find({
+      const enrouteDocs = await this.docRepository.find({
         where: {
           tripId: trip.id,
           id: Not(currentDoc.id), // Exclude current document
@@ -1066,8 +1115,8 @@ export class DocService {
         relations: ["customer"],
       });
 
-      if (otherDocs.length === 0) {
-        return 0; // No other customers to serve
+      if (enrouteDocs.length === 0) {
+        return { serviceTime: 0, numEnrouteCustomers: 0 }; // No enroute customers to serve
       }
 
       // Get driver coordinates
@@ -1075,11 +1124,11 @@ export class DocService {
       const driverLng = parseFloat(driverLocation.geoLongitude);
 
       if (isNaN(driverLat) || isNaN(driverLng)) {
-        return undefined; // Driver location not available
+        return { serviceTime: undefined, numEnrouteCustomers: undefined }; // Driver location not available
       }
 
       // Calculate distances and sort documents by proximity to driver
-      const docsWithDistance = otherDocs.map((doc) => {
+      const docsWithDistance = enrouteDocs.map((doc) => {
         let distance = 0;
 
         if (
@@ -1111,7 +1160,7 @@ export class DocService {
       const currentCustomerLng = parseFloat(currentDoc.customer.geoLongitude);
 
       if (isNaN(currentCustomerLat) || isNaN(currentCustomerLng)) {
-        return undefined; // Current customer location invalid
+        return { serviceTime: undefined, numEnrouteCustomers: undefined }; // Current customer location invalid
       }
 
       const currentDistance = this.calculateDistance(
@@ -1132,11 +1181,25 @@ export class DocService {
       }
 
       // Calculate service time: number of customers before current × 10 minutes
-      return customersBeforeCurrent * 10;
+      const serviceTime = customersBeforeCurrent * 10;
+      return { serviceTime, numEnrouteCustomers: customersBeforeCurrent };
     } catch (error) {
-      console.error("Error calculating other customers service time:", error);
-      return undefined; // Return undefined on error
+      console.error("Error calculating enroute customers info:", error);
+      return { serviceTime: undefined, numEnrouteCustomers: undefined }; // Return undefined on error
     }
+  }
+
+  private async calculateEnrouteCustomersServiceTime(
+    currentDoc: Doc,
+    trip: Trip,
+    driverLocation: LocationHeartbeat
+  ): Promise<number | undefined> {
+    const result = await this.calculateEnrouteCustomersInfo(
+      currentDoc,
+      trip,
+      driverLocation
+    );
+    return result.serviceTime;
   }
 
   private calculateDistance(
@@ -1161,5 +1224,45 @@ export class DocService {
 
   private toRadians(degrees: number): number {
     return degrees * (Math.PI / 180);
+  }
+
+  private async calculateETA(
+    driverLatitude: string,
+    driverLongitude: string,
+    customerLatitude: string,
+    customerLongitude: string
+  ): Promise<number> {
+    try {
+      const response = await axios.get(
+        "https://maps.googleapis.com/maps/api/distancematrix/json",
+        {
+          params: {
+            origins: `${driverLatitude},${driverLongitude}`,
+            destinations: `${customerLatitude},${customerLongitude}`,
+            departure_time: "now", // Use current time for traffic conditions
+            traffic_model: "best_guess", // Consider traffic conditions
+            key: GlobalConstants.GOOGLE_MAPS_API_KEY,
+          },
+        }
+      );
+
+      if (response.data.status === "OK" && response.data.rows.length > 0) {
+        const element = response.data.rows[0].elements[0];
+
+        if (element.status === "OK") {
+          // Return duration in traffic in minutes
+          const durationInSeconds =
+            element.duration_in_traffic?.value || element.duration?.value;
+          if (durationInSeconds) {
+            return Math.ceil(durationInSeconds / 60); // Convert to minutes and round up
+          }
+        }
+      }
+
+      return -1;
+    } catch (error) {
+      console.error("Error calculating ETA with Google Maps:", error);
+      return -1;
+    }
   }
 }
