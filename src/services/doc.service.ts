@@ -1361,4 +1361,66 @@ export class DocService {
       return -1;
     }
   }
+
+  async getDeliveryStatus(docId: string): Promise<{
+    success: boolean;
+    message: string;
+    docId: string;
+    status: string;
+    comment?: string;
+    signature?: string;
+    deliveredAt?: Date;
+    statusCode: number;
+  }> {
+    // Find the document
+    const doc = await this.docRepository.findOne({
+      where: { id: docId },
+      relations: ["customer"],
+    });
+
+    if (!doc) {
+      throw new NotFoundException("Document not found in the system");
+    }
+
+    // Check if document is in a final delivery state
+    if (
+      doc.status !== DocStatus.DELIVERED &&
+      doc.status !== DocStatus.UNDELIVERED
+    ) {
+      return {
+        success: false,
+        message: `Document is not in a final delivery state. Current status: ${doc.status}`,
+        docId: docId,
+        status: doc.status,
+        statusCode: 400,
+      };
+    }
+
+    let signature = undefined;
+    let deliveredAt = undefined;
+
+    // Get signature if document is delivered
+    if (doc.status === DocStatus.DELIVERED) {
+      const signatureRecord = await this.signatureRepository.findOne({
+        where: { docId: docId },
+      });
+
+      if (signatureRecord) {
+        // Convert signature buffer to base64 string
+        signature = signatureRecord.signature.toString("base64");
+        deliveredAt = signatureRecord.lastUpdatedAt;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Document delivery status retrieved successfully`,
+      docId: docId,
+      status: doc.status,
+      comment: doc.comment,
+      signature: signature,
+      deliveredAt: deliveredAt,
+      statusCode: 200,
+    };
+  }
 }
