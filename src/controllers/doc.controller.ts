@@ -317,7 +317,6 @@ export class DocController {
     @Param("docId") docId: string,
     @Res() res: Response
   ): Promise<void> {
-    console.log("getDeliveryStatus", docId);
     try {
       // Try to decode base64, if it fails, use the docId as-is
       let actualDocId = docId;
