@@ -96,6 +96,8 @@ export class DocService {
           customerName: response.data.customerName,
           customerAddress: response.data.customerAddress,
           customerCity: response.data.customerCity,
+          customerPhone: response.data.customerPhone,
+          customerPinCode: response.data.customerPinCode,
           invoiceDate: response.data.invoiceDate,
           invoiceAmount: response.data.invoiceAmount,
           docDate: response.data.invoiceDate,
