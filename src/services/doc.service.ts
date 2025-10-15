@@ -1410,7 +1410,10 @@ export class DocService {
       if (signatureRecord) {
         // Convert signature buffer to base64 string
         signature = signatureRecord.signature.toString("base64");
-        deliveredAt = signatureRecord.lastUpdatedAt;
+        // Ensure deliveredAt is in UTC format
+        deliveredAt = signatureRecord.lastUpdatedAt
+          ? new Date(signatureRecord.lastUpdatedAt).toISOString()
+          : undefined;
       }
     }
 
