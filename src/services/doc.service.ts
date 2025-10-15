@@ -96,6 +96,8 @@ export class DocService {
           customerName: response.data.customerName,
           customerAddress: response.data.customerAddress,
           customerCity: response.data.customerCity,
+          customerPhone: response.data.customerPhone,
+          customerPinCode: response.data.customerPinCode,
           invoiceDate: response.data.invoiceDate,
           invoiceAmount: response.data.invoiceAmount,
           docDate: response.data.invoiceDate,
@@ -1408,7 +1410,10 @@ export class DocService {
       if (signatureRecord) {
         // Convert signature buffer to base64 string
         signature = signatureRecord.signature.toString("base64");
-        deliveredAt = signatureRecord.lastUpdatedAt;
+        // Ensure deliveredAt is in UTC format
+        deliveredAt = signatureRecord.lastUpdatedAt
+          ? new Date(signatureRecord.lastUpdatedAt).toISOString()
+          : undefined;
       }
     }
 
