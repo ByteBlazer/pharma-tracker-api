@@ -246,7 +246,7 @@ export class DocService {
     if (!matchedDoc) {
       return {
         success: false,
-        message: "Doc ID not found in ERP", //as well as mock data
+        message: "Doc ID " + docId + " not found in ERP", //as well as mock data
         docId: docId,
         statusCode: 400, // Bad Request
       };
