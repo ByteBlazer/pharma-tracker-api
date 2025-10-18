@@ -106,7 +106,7 @@ export class DocService {
         erpMatchFound = true;
       }
     } catch (error) {
-      console.error("Error fetching document from ERP API:", error);
+      console.error("Error fetching document from ERP API");
       // If API call fails, continue with erpMatchFound = false
     }
 
@@ -161,8 +161,7 @@ export class DocService {
             )
             .catch((e) => {
               console.error(
-                `Failed to update doc ${docId} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
-                e
+                `Failed to update doc ${docId} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API`
               );
             });
         }
@@ -600,7 +599,7 @@ export class DocService {
           }));
         }
       } catch (error) {
-        console.error("Error fetching documents from ERP API:", error);
+        console.error("Error fetching documents from ERP API");
         // If API call fails, use empty array as fallback
         docsFromErp = [];
       }
@@ -1351,7 +1350,8 @@ export class DocService {
           // Return duration in traffic in minutes
           const durationInSeconds =
             element.duration_in_traffic?.value || element.duration?.value;
-          if (durationInSeconds) {
+
+          if (durationInSeconds != null && durationInSeconds != undefined) {
             return Math.ceil(durationInSeconds / 60); // Convert to minutes and round up
           }
         }
@@ -1359,7 +1359,7 @@ export class DocService {
 
       return -1;
     } catch (error) {
-      console.error("Error calculating ETA with Google Maps:", error);
+      console.error("Error calculating ETA with Google Maps");
       return -1;
     }
   }

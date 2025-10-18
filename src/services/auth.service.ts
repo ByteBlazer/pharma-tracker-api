@@ -64,7 +64,7 @@ export class AuthService {
 
     const generateOtpUrl = GlobalConstants.SMS_GENERATE_OTP_TEMPLATE.replace(
       "{apikey}",
-      process.env.SMS_API_KEY
+      GlobalConstants.SMS_API_KEY
     )
       .replace("{mobilePhone}", authRequestDto.mobile)
       .replace("{otpTemplateName}", GlobalConstants.SMS_OTP_TEMPLATE);
@@ -117,7 +117,7 @@ export class AuthService {
     if (!skip) {
       const validateOtpUrl = GlobalConstants.SMS_VALIDATE_OTP_TEMPLATE.replace(
         "{apikey}",
-        process.env.SMS_API_KEY
+        GlobalConstants.SMS_API_KEY
       )
         .replace("{mobilePhone}", authRequestDto.mobile)
         .replace("{otp}", authRequestDto.otp);

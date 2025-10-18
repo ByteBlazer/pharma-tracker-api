@@ -6,6 +6,11 @@ export class GlobalConstants {
   static readonly SEND_SMS_URL_TEMPLATE =
     "https://2factor.in/API/R1/?module=TRANS_SMS&apikey={apikey}&to={recipientMobileNumber}&from=BTBLZR&templatename={smsTemplateName}";
   static readonly SMS_OTP_TEMPLATE = "PHARMA_OTP_V6";
+  static readonly SMS_TRACK_TEMPLATE = "PHARMA_TRACK_V2";
+  static readonly SMS_API_KEY = "397be28f-2352-11ec-a13b-0200cd936042";
+
+  // Tracking SMS Control - Set to true to enable tracking SMS sending in local Windows environment
+  static readonly ENABLE_TRACKING_SMS_IN_LOCAL = true;
 
   static readonly GOOGLE_MAPS_API_KEY =
     "AIzaSyB-M95qSZan9nDkd1kcg7HYhTjG8gwd2FE";

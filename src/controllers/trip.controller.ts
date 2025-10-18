@@ -7,6 +7,7 @@ import {
   UseGuards,
   ValidationPipe,
   BadRequestException,
+  Req,
 } from "@nestjs/common";
 import { TripService } from "../services/trip.service";
 import { CreateTripDto } from "../dto/create-trip.dto";
@@ -93,13 +94,18 @@ export class TripController {
   @Post("start/:tripId")
   async startTrip(
     @Param("tripId") tripId: string,
-    @LoggedInUser() loggedInUser: JwtPayload
+    @LoggedInUser() loggedInUser: JwtPayload,
+    @Req() request: any
   ): Promise<{ success: boolean; message: string; statusCode: number }> {
     const tripIdNumber = parseInt(tripId, 10);
     if (isNaN(tripIdNumber)) {
       throw new BadRequestException("Invalid trip ID. Must be a number.");
     }
-    return await this.tripService.startTrip(tripIdNumber, loggedInUser);
+    return await this.tripService.startTrip(
+      tripIdNumber,
+      loggedInUser,
+      request
+    );
   }
 
   @Post("end/:tripId")
