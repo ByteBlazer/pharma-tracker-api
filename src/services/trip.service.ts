@@ -438,7 +438,8 @@ export class TripService {
 
   async startTrip(
     tripId: number,
-    loggedInUser: JwtPayload
+    loggedInUser: JwtPayload,
+    request?: any
   ): Promise<{ success: boolean; message: string; statusCode: number }> {
     // Find the trip to validate it exists and check its status
     const trip = await this.tripRepository.findOne({
@@ -540,6 +541,113 @@ export class TripService {
                 );
               })
           )
+        );
+      }
+
+      // Send SMS to customers for all documents that moved to ON_TRIP (non-blocking)
+      if (associatedDocs.length > 0) {
+        void Promise.all(
+          associatedDocs.map(async (doc) => {
+            try {
+              // Get customer details
+              const customer = await this.customerRepository.findOne({
+                where: { id: doc.customerId },
+              });
+
+              if (customer && customer.phone) {
+                // Skip SMS in local Windows environment unless explicitly enabled
+                if (
+                  process.platform === "win32" &&
+                  !GlobalConstants.ENABLE_TRACKING_SMS_IN_LOCAL
+                ) {
+                  console.log(
+                    `Windows environment: Skipping tracking SMS for doc ${doc.id} (set ENABLE_TRACKING_SMS_IN_LOCAL=true to test)`
+                  );
+                  return;
+                }
+
+                // Determine recipient phone number based on environment
+                const isProduction = process.env.NODE_ENV === "production";
+                const recipientPhone = isProduction
+                  ? customer.phone
+                  : loggedInUser.mobile;
+                const recipientType = isProduction
+                  ? "customer"
+                  : "logged-in user";
+
+                // Prepare SMS variables
+                const variableMap = new Map();
+                variableMap.set("VAR1", doc.id);
+
+                // Get host URL from request or use fallback
+                let hostUrl = "https://track.pharmatracker.com"; // fallback
+                if (request && request.headers) {
+                  const protocol =
+                    request.headers["x-forwarded-proto"] ||
+                    (request.secure ? "https" : "http");
+                  const host = request.headers.host;
+                  if (host) {
+                    hostUrl = `${protocol}://${host}`;
+                  }
+                }
+
+                variableMap.set(
+                  "VAR2",
+                  `${hostUrl}/tracking?token=${Buffer.from(doc.id).toString(
+                    "base64"
+                  )}`
+                );
+
+                // Build URL parameters from variables
+                let urlParams = "";
+                variableMap.forEach((value, key) => {
+                  urlParams =
+                    urlParams +
+                    "&" +
+                    key.toLowerCase() +
+                    "=" +
+                    encodeURIComponent(value);
+                });
+
+                // Send SMS using 2factor.in API
+                const smsUrl =
+                  GlobalConstants.SEND_SMS_URL_TEMPLATE.replace(
+                    "{apikey}",
+                    GlobalConstants.SMS_API_KEY
+                  )
+                    .replace("{recipientMobileNumber}", recipientPhone)
+                    .replace(
+                      "{smsTemplateName}",
+                      GlobalConstants.SMS_TRACK_TEMPLATE
+                    ) + urlParams;
+
+                await axios.get(smsUrl, {
+                  timeout: 10000,
+                  headers: {
+                    "User-Agent": "Mozilla/5.0",
+                  },
+                });
+
+                console.log(
+                  `SMS with URL ${smsUrl} sent successfully to ${recipientType} ${
+                    isProduction ? customer.id : loggedInUser.id
+                  } (${recipientPhone}) for doc ${doc.id}${
+                    !isProduction
+                      ? " [NON-PRODUCTION: redirected to logged-in user]"
+                      : " [PRODUCTION: sent to customer]"
+                  }`
+                );
+              } else {
+                console.log(
+                  `Skipping SMS for doc ${doc.id} - customer ${doc.customerId} has no phone number`
+                );
+              }
+            } catch (error) {
+              console.error(
+                `Failed to send SMS for doc ${doc.id} to customer ${doc.customerId}`
+              );
+            }
+          })
         );
       }
 

@@ -5,6 +5,7 @@ import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import axios from "axios";
 
 /**
  * Load AWS credentials from local AWS CLI credentials file
@@ -89,9 +90,76 @@ function loadAWSCredentials() {
   }
 }
 
+/**
+ * Configure axios globally to log only error messages instead of full response objects
+ */
+function configureAxiosLogging() {
+  // Response interceptor to handle successful responses (optional - for debugging)
+  axios.interceptors.response.use(
+    (response) => {
+      // You can add success logging here if needed
+      return response;
+    },
+    (error) => {
+      // Log only the essential error information
+      if (error.response) {
+        // Server responded with error status
+        console.error(
+          `❌ HTTP ${error.response.status}: ${error.response.statusText}`
+        );
+        if (error.response.data) {
+          // Log response data if it's a string or simple object
+          if (typeof error.response.data === "string") {
+            console.error(`   Response: ${error.response.data}`);
+          } else if (error.response.data.message) {
+            console.error(`   Message: ${error.response.data.message}`);
+          } else if (error.response.data.error) {
+            console.error(`   Error: ${error.response.data.error}`);
+          } else if (error.response.data.Details) {
+            console.error(`   Details: ${error.response.data.Details}`);
+          } else if (error.response.data.Status) {
+            console.error(`   Status: ${error.response.data.Status}`);
+          } else if (error.response.data.details) {
+            console.error(`   Details: ${error.response.data.details}`);
+          } else if (error.response.data.status) {
+            console.error(`   Status: ${error.response.data.status}`);
+          } else if (error.response.data.description) {
+            console.error(`   Description: ${error.response.data.description}`);
+          } else if (error.response.data.reason) {
+            console.error(`   Reason: ${error.response.data.reason}`);
+          } else {
+            // If it's an object but we don't recognize the structure, log the first meaningful property
+            const keys = Object.keys(error.response.data);
+            if (keys.length > 0) {
+              const firstKey = keys[0];
+              console.error(`   ${firstKey}: ${error.response.data[firstKey]}`);
+            }
+          }
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        console.error(`❌ Network Error: No response received from server`);
+        console.error(`   URL: ${error.config?.url || "Unknown"}`);
+      } else {
+        // Something else happened
+        console.error(`❌ Request Error: ${error.message}`);
+      }
+
+      // Return the error to be handled by the calling code
+      return Promise.reject(error);
+    }
+  );
+
+  console.log("🔧 Axios global error logging configured");
+}
+
 async function bootstrap() {
   // Load AWS credentials before app initialization
   loadAWSCredentials();
+
+  // Configure axios global error logging
+  configureAxiosLogging();
+
   const app = await NestFactory.create(AppModule);
 
   // Set global API prefix
