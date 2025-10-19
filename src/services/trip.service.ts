@@ -1,26 +1,26 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource, In, MoreThanOrEqual, Not } from "typeorm";
-import { Trip } from "../entities/trip.entity";
-import { Doc } from "../entities/doc.entity";
-import { AppUser } from "../entities/app-user.entity";
-import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
-import { Customer } from "../entities/customer.entity";
-import { LocationHeartbeat } from "../entities/location-heartbeat.entity";
+import axios from "axios";
+import { DataSource, In, MoreThanOrEqual, Not, Repository } from "typeorm";
 import { CreateTripDto } from "../dto/create-trip.dto";
-import { TripOutputDto } from "../dto/trip-output.dto";
-import { ScheduledTripsResponseDto } from "../dto/scheduled-trips-response.dto";
-import { TripDetailsOutputDto } from "../dto/trip-details-output.dto";
 import { DocGroupOutputDto } from "../dto/doc-group-output.dto";
 import { DocOutputDto } from "../dto/doc-output.dto";
-import { TripStatus } from "../enums/trip-status.enum";
+import { ScheduledTripsResponseDto } from "../dto/scheduled-trips-response.dto";
+import { TripDetailsOutputDto } from "../dto/trip-details-output.dto";
+import { TripOutputDto } from "../dto/trip-output.dto";
+import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
+import { AppUser } from "../entities/app-user.entity";
+import { Customer } from "../entities/customer.entity";
+import { Doc } from "../entities/doc.entity";
+import { LocationHeartbeat } from "../entities/location-heartbeat.entity";
+import { Trip } from "../entities/trip.entity";
 import { DocStatus } from "../enums/doc-status.enum";
+import { TripStatus } from "../enums/trip-status.enum";
 import { UserRole } from "../enums/user-role.enum";
-import { JwtPayload } from "../interfaces/jwt-payload.interface";
-import { AvailableDriver } from "../interfaces/available-driver.interface";
 import { GlobalConstants } from "../GlobalConstants";
+import { AvailableDriver } from "../interfaces/available-driver.interface";
+import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { SettingsCacheService } from "./settings-cache.service";
-import axios from "axios";
 
 @Injectable()
 export class TripService {
@@ -555,6 +555,17 @@ export class TripService {
               });
 
               if (customer && customer.phone) {
+                // Check if tracking SMS is enabled via setting
+                const sendTrackingSms =
+                  this.settingsCacheService.getSendTrackingSms();
+
+                if (!sendTrackingSms) {
+                  console.log(
+                    `Tracking SMS disabled via setting: Skipping tracking SMS for doc ${doc.id}`
+                  );
+                  return;
+                }
+
                 // Skip SMS in local Windows environment unless explicitly enabled
                 if (
                   process.platform === "win32" &&
