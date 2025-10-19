@@ -591,7 +591,7 @@ export class TripService {
                 variableMap.set("VAR1", doc.id);
 
                 // Get host URL from request or use fallback
-                let hostUrl = "https://track.pharmatracker.com"; // fallback
+                let hostUrl = "";
                 if (request && request.headers) {
                   const protocol =
                     request.headers["x-forwarded-proto"] ||
