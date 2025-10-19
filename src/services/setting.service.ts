@@ -92,6 +92,9 @@ export class SettingService {
       case SettingEnum.UPDATE_DOC_STATUS_TO_ERP:
         this.validateBooleanSetting(settingName, settingValue);
         break;
+      case SettingEnum.SEND_TRACKING_SMS:
+        this.validateBooleanSetting(settingName, settingValue);
+        break;
       default:
         throw new BadRequestException(`Unknown setting name: ${settingName}`);
     }

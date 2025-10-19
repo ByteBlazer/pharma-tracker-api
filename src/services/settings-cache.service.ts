@@ -76,6 +76,14 @@ export class SettingsCacheService implements OnModuleInit {
     return false; // Default to false if not set
   }
 
+  getSendTrackingSms(): boolean {
+    const value = this.getSetting(SettingEnum.SEND_TRACKING_SMS);
+    if (value) {
+      return value.toLowerCase() === "true";
+    }
+    return true; // Default to true if not set (to maintain current behavior)
+  }
+
   // Method to update a specific setting in cache (called when setting is updated)
   updateSettingInCache(settingName: string, settingValue: string): void {
     this.settingsCache.set(settingName, settingValue);
