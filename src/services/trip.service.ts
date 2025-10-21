@@ -554,44 +554,44 @@ export class TripService {
                 where: { id: doc.customerId },
               });
 
-              if (customer && customer.phone) {
-                // Check if tracking SMS is enabled via setting
-                const sendTrackingSms =
-                  this.settingsCacheService.getSendTrackingSms();
+              // Check if tracking SMS is enabled via setting
+              const sendTrackingSms =
+                this.settingsCacheService.getSendTrackingSms();
 
-                if (!sendTrackingSms) {
-                  console.log(
-                    `Tracking SMS disabled via setting: Skipping tracking SMS for doc ${doc.id}`
-                  );
-                  return;
-                }
+              if (!sendTrackingSms) {
+                console.log(
+                  `Tracking SMS disabled via setting: Skipping tracking SMS for doc ${doc.id}`
+                );
+                return;
+              }
 
-                // Skip SMS in local Windows environment unless explicitly enabled
-                if (
-                  process.platform === "win32" &&
-                  !GlobalConstants.ENABLE_TRACKING_SMS_IN_LOCAL
-                ) {
-                  console.log(
-                    `Windows environment: Skipping tracking SMS for doc ${doc.id} (set ENABLE_TRACKING_SMS_IN_LOCAL=true to test)`
-                  );
-                  return;
-                }
+              // Skip SMS in local Windows environment unless explicitly enabled
+              if (
+                process.platform === "win32" &&
+                !GlobalConstants.ENABLE_TRACKING_SMS_IN_LOCAL
+              ) {
+                console.log(
+                  `Windows environment: Skipping tracking SMS for doc ${doc.id} (set ENABLE_TRACKING_SMS_IN_LOCAL=true to test)`
+                );
+                return;
+              }
 
-                // Determine recipient phone number based on environment
-                const isProduction = process.env.NODE_ENV === "production";
-                const recipientPhone = isProduction
-                  ? customer.phone
-                  : loggedInUser.mobile;
-                const recipientType = isProduction
-                  ? "customer"
-                  : "logged-in user";
+              // Determine recipient phone number based on environment
+              const isProduction = process.env.NODE_ENV === "production";
+              const recipientPhone = isProduction
+                ? customer.phone
+                : loggedInUser.mobile;
+              const recipientType = isProduction
+                ? "customer"
+                : "logged-in user";
 
+              if (recipientPhone) {
                 // Prepare SMS variables
                 const variableMap = new Map();
                 variableMap.set("VAR1", doc.id);
 
                 // Get host URL from request or use fallback
-                let hostUrl = "https://track.pharmatracker.com"; // fallback
+                let hostUrl = "";
                 if (request && request.headers) {
                   const protocol =
                     request.headers["x-forwarded-proto"] ||
@@ -1314,7 +1314,8 @@ export class TripService {
         },
       },
       order: {
-        createdAt: "DESC",
+        status: "DESC", // STARTED comes before SCHEDULED (alphabetically DESC)
+        createdAt: "DESC", // Within each status, newest first
       },
     });
 
