@@ -915,6 +915,7 @@ export class DocService {
 
     // Update ERP with DELIVERED status (non-blocking)
     if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+      console.log("Updating doc status to ERP API");
       void axios
         .post(
           `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
@@ -932,7 +933,7 @@ export class DocService {
           );
         });
     }
-
+    console.log("results", result);
     return result;
   }
 
