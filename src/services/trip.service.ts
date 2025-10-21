@@ -590,23 +590,9 @@ export class TripService {
                 const variableMap = new Map();
                 variableMap.set("VAR1", doc.id);
 
-                // Get host URL from request or use fallback
-                let hostUrl = "";
-                if (request && request.headers) {
-                  const protocol =
-                    request.headers["x-forwarded-proto"] ||
-                    (request.secure ? "https" : "http");
-                  const host = request.headers.host;
-                  if (host) {
-                    hostUrl = `${protocol}://${host}`;
-                  }
-                }
-
                 variableMap.set(
                   "VAR2",
-                  `${hostUrl}/tracking?token=${Buffer.from(doc.id).toString(
-                    "base64"
-                  )}`
+                  `${Buffer.from(doc.id).toString("base64")}`
                 );
 
                 // Build URL parameters from variables
@@ -621,16 +607,14 @@ export class TripService {
                 });
 
                 // Send SMS using 2factor.in API
+                const smsTemplateName = process.env.TRACK_SMS_TEMPLATE;
                 const smsUrl =
                   GlobalConstants.SEND_SMS_URL_TEMPLATE.replace(
                     "{apikey}",
                     GlobalConstants.SMS_API_KEY
                   )
                     .replace("{recipientMobileNumber}", recipientPhone)
-                    .replace(
-                      "{smsTemplateName}",
-                      GlobalConstants.SMS_TRACK_TEMPLATE
-                    ) + urlParams;
+                    .replace("{smsTemplateName}", smsTemplateName) + urlParams;
 
                 await axios.get(smsUrl, {
                   timeout: 10000,
