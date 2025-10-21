@@ -82,6 +82,7 @@ export class DocService {
             user: loggedInUser.username,
           },
           headers: GlobalConstants.ERP_API_HEADERS,
+          timeout: 3000, // 3 second timeout
         }
       );
 
@@ -107,7 +108,13 @@ export class DocService {
       }
     } catch (error) {
       console.error("Error fetching document from ERP API");
-      // If API call fails, continue with erpMatchFound = false
+      return {
+        success: false,
+        message:
+          "ERP API Server is not responding. Please check with ERP Team.",
+        docId: docId,
+        statusCode: 400,
+      };
     }
 
     // Check if document already exists in database
