@@ -5,7 +5,7 @@ import { DataSource, In, MoreThanOrEqual, Not, Repository } from "typeorm";
 import { CreateTripDto } from "../dto/create-trip.dto";
 import { DocGroupOutputDto } from "../dto/doc-group-output.dto";
 import { DocOutputDto } from "../dto/doc-output.dto";
-import { ScheduledTripsResponseDto } from "../dto/scheduled-trips-response.dto";
+import { TripsResponseDto } from "../dto/trips-response.dto";
 import { TripDetailsOutputDto } from "../dto/trip-details-output.dto";
 import { TripOutputDto } from "../dto/trip-output.dto";
 import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
@@ -229,7 +229,7 @@ export class TripService {
 
   async getScheduledTripsFromSameLocation(
     loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     // Get the logged-in user's location ID
     const userLocationId = loggedInUser.baseLocationId;
 
@@ -249,7 +249,7 @@ export class TripService {
     );
   }
 
-  async getAllScheduledTrips(): Promise<ScheduledTripsResponseDto> {
+  async getAllScheduledTrips(): Promise<TripsResponseDto> {
     return this.getScheduledTrips(
       null, // No user filtering - get all scheduled trips
       null, // No driver filtering
@@ -258,7 +258,7 @@ export class TripService {
     );
   }
 
-  async getAllTrips(): Promise<ScheduledTripsResponseDto> {
+  async getAllTrips(): Promise<TripsResponseDto> {
     // Calculate 48 hours ago for ENDED trips filter
     const fortyEightHoursAgo = new Date();
     fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
@@ -300,7 +300,7 @@ export class TripService {
         ? "No trips found."
         : `Found ${tripsWithDetails.length} trip(s) (scheduled, started, or ended within last 48 hours).`;
 
-    const response: ScheduledTripsResponseDto = {
+    const response: TripsResponseDto = {
       success: true,
       message: message,
       trips: tripsWithDetails,
@@ -313,7 +313,7 @@ export class TripService {
 
   async getAllScheduledTripsForDriver(
     driverId: string
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     return this.getScheduledTrips(
       null, // No user filtering - get all scheduled trips for this driver
       driverId, // Filter by driver
@@ -324,7 +324,7 @@ export class TripService {
 
   async getAllMyScheduledTrips(
     loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     return this.getAllScheduledTripsForDriver(loggedInUser.id);
   }
 
@@ -425,7 +425,7 @@ export class TripService {
 
       return {
         success: true,
-        message: `Trip ${tripId} has been cancelled successfully. ${associatedDocs.length} document(s) have been moved back to READY_FOR_DISPATCH status.`,
+        message: `Trip ${tripId} has been cancelled successfully. ${associatedDocs.length} document(s) moved back to READY_FOR_DISPATCH status.`,
         statusCode: 200,
       };
     } catch (error) {
@@ -1224,7 +1224,7 @@ export class TripService {
     driverId: string | null,
     noTripsMessage: string,
     foundTripsMessage: string
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     // Build the where condition
     const whereCondition: any = {
       status: TripStatus.SCHEDULED,
@@ -1266,7 +1266,7 @@ export class TripService {
         ? noTripsMessage
         : `Found ${tripsWithDetails.length} ${foundTripsMessage}.`;
 
-    const response: ScheduledTripsResponseDto = {
+    const response: TripsResponseDto = {
       success: true,
       message: message,
       trips: tripsWithDetails,
@@ -1277,9 +1277,7 @@ export class TripService {
     return response;
   }
 
-  async getMyTrips(
-    loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  async getMyTrips(loggedInUser: JwtPayload): Promise<TripsResponseDto> {
     // Build the where condition for SCHEDULED or STARTED trips
     const whereCondition: any = {
       drivenBy: loggedInUser.id,
@@ -1313,7 +1311,7 @@ export class TripService {
         ? "No trips found for you."
         : `Found ${tripsWithDetails.length} trip(s) found for you.`;
 
-    const response: ScheduledTripsResponseDto = {
+    const response: TripsResponseDto = {
       success: true,
       message: message,
       trips: tripsWithDetails,
@@ -1352,6 +1350,31 @@ export class TripService {
       }
     }
 
+    // Fetch all documents for this trip to calculate the new attributes
+    const docs = await this.docRepository.find({
+      where: { tripId: trip.id },
+    });
+    if (trip.id == 57) {
+      console.log(docs);
+    }
+
+    // Calculate pendingDirectDeliveries: docs with null lot (direct deliveries) that are NOT DELIVERED/UNDELIVERED
+    const directDeliveryDocs = docs.filter((doc) => doc.lot === null);
+    const pendingDirectDeliveries = directDeliveryDocs.filter(
+      (doc) =>
+        doc.status !== DocStatus.DELIVERED &&
+        doc.status !== DocStatus.UNDELIVERED
+    ).length;
+
+    // Calculate totalDirectDeliveries: all docs with null lot (direct deliveries) - ignore status
+    const totalDirectDeliveries = directDeliveryDocs.length;
+
+    // Calculate pendingLotDropOffs: number of unique lot groups (docs with populated lot)
+    const lotGroups = new Set(
+      docs.map((doc) => doc.lot).filter((lot) => lot !== null)
+    );
+    const pendingLotDropOffs = lotGroups.size;
+
     return {
       tripId: trip.id,
       createdBy: trip.creator.personName,
@@ -1370,6 +1393,12 @@ export class TripService {
       driverLastKnownLatitude: driverLastKnownLatitude,
       driverLastKnownLongitude: driverLastKnownLongitude,
       driverLastLocationUpdateTime: driverLastLocationUpdateTime,
+      // New attributes
+      pendingDirectDeliveries: pendingDirectDeliveries,
+      totalDirectDeliveries: totalDirectDeliveries,
+      deliveryCountStatusMsg: `Deliveries: ${pendingDirectDeliveries} pending out of ${totalDirectDeliveries}`,
+      pendingLotDropOffs: pendingLotDropOffs,
+      dropOffCountStatusMsg: `Lot Drop Offs Pending: ${pendingLotDropOffs}`,
     };
   }
 

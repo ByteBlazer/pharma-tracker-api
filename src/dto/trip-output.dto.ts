@@ -12,6 +12,11 @@ export class TripOutputDto {
   lastUpdatedAt: Date;
   creatorLocation: string;
   driverLocation: string;
+  pendingDirectDeliveries: number;
+  totalDirectDeliveries: number;
+  pendingLotDropOffs: number;
+  deliveryCountStatusMsg: string;
+  dropOffCountStatusMsg: string;
   // Driver's last known location
   driverLastKnownLatitude: string;
   driverLastKnownLongitude: string;
