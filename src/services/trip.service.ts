@@ -1,24 +1,26 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource, In, MoreThanOrEqual, Not } from "typeorm";
-import { Trip } from "../entities/trip.entity";
-import { Doc } from "../entities/doc.entity";
-import { AppUser } from "../entities/app-user.entity";
-import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
-import { Customer } from "../entities/customer.entity";
-import { LocationHeartbeat } from "../entities/location-heartbeat.entity";
+import axios from "axios";
+import { DataSource, In, MoreThanOrEqual, Not, Repository } from "typeorm";
 import { CreateTripDto } from "../dto/create-trip.dto";
-import { TripOutputDto } from "../dto/trip-output.dto";
-import { ScheduledTripsResponseDto } from "../dto/scheduled-trips-response.dto";
-import { TripDetailsOutputDto } from "../dto/trip-details-output.dto";
 import { DocGroupOutputDto } from "../dto/doc-group-output.dto";
 import { DocOutputDto } from "../dto/doc-output.dto";
-import { TripStatus } from "../enums/trip-status.enum";
+import { TripsResponseDto } from "../dto/trips-response.dto";
+import { TripDetailsOutputDto } from "../dto/trip-details-output.dto";
+import { TripOutputDto } from "../dto/trip-output.dto";
+import { AppUserXUserRole } from "../entities/app-user-x-user-role.entity";
+import { AppUser } from "../entities/app-user.entity";
+import { Customer } from "../entities/customer.entity";
+import { Doc } from "../entities/doc.entity";
+import { LocationHeartbeat } from "../entities/location-heartbeat.entity";
+import { Trip } from "../entities/trip.entity";
 import { DocStatus } from "../enums/doc-status.enum";
+import { TripStatus } from "../enums/trip-status.enum";
 import { UserRole } from "../enums/user-role.enum";
-import { JwtPayload } from "../interfaces/jwt-payload.interface";
-import { AvailableDriver } from "../interfaces/available-driver.interface";
 import { GlobalConstants } from "../GlobalConstants";
+import { AvailableDriver } from "../interfaces/available-driver.interface";
+import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { SettingsCacheService } from "./settings-cache.service";
 
 @Injectable()
 export class TripService {
@@ -35,7 +37,8 @@ export class TripService {
     private customerRepository: Repository<Customer>,
     @InjectRepository(LocationHeartbeat)
     private locationHeartbeatRepository: Repository<LocationHeartbeat>,
-    private dataSource: DataSource
+    private dataSource: DataSource,
+    private readonly settingsCacheService: SettingsCacheService
   ) {}
 
   async createTrip(createTripDto: CreateTripDto, loggedInUser: JwtPayload) {
@@ -111,6 +114,33 @@ export class TripService {
       );
 
       await queryRunner.commitTransaction();
+
+      // Update ERP with TRIP_SCHEDULED status for all documents (non-blocking)
+      if (
+        documentsToLoad.length > 0 &&
+        this.settingsCacheService.getUpdateDocStatusToErp()
+      ) {
+        void Promise.all(
+          documentsToLoad.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.TRIP_SCHEDULED,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.TRIP_SCHEDULED} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
 
       return {
         success: true,
@@ -199,7 +229,7 @@ export class TripService {
 
   async getScheduledTripsFromSameLocation(
     loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     // Get the logged-in user's location ID
     const userLocationId = loggedInUser.baseLocationId;
 
@@ -219,7 +249,7 @@ export class TripService {
     );
   }
 
-  async getAllScheduledTrips(): Promise<ScheduledTripsResponseDto> {
+  async getAllScheduledTrips(): Promise<TripsResponseDto> {
     return this.getScheduledTrips(
       null, // No user filtering - get all scheduled trips
       null, // No driver filtering
@@ -228,7 +258,7 @@ export class TripService {
     );
   }
 
-  async getAllTrips(): Promise<ScheduledTripsResponseDto> {
+  async getAllTrips(): Promise<TripsResponseDto> {
     // Calculate 48 hours ago for ENDED trips filter
     const fortyEightHoursAgo = new Date();
     fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
@@ -270,7 +300,7 @@ export class TripService {
         ? "No trips found."
         : `Found ${tripsWithDetails.length} trip(s) (scheduled, started, or ended within last 48 hours).`;
 
-    const response: ScheduledTripsResponseDto = {
+    const response: TripsResponseDto = {
       success: true,
       message: message,
       trips: tripsWithDetails,
@@ -283,7 +313,7 @@ export class TripService {
 
   async getAllScheduledTripsForDriver(
     driverId: string
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     return this.getScheduledTrips(
       null, // No user filtering - get all scheduled trips for this driver
       driverId, // Filter by driver
@@ -294,7 +324,7 @@ export class TripService {
 
   async getAllMyScheduledTrips(
     loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     return this.getAllScheduledTripsForDriver(loggedInUser.id);
   }
 
@@ -366,9 +396,36 @@ export class TripService {
 
       await queryRunner.commitTransaction();
 
+      // Update ERP with READY_FOR_DISPATCH status for all cancelled documents (non-blocking)
+      if (
+        associatedDocs.length > 0 &&
+        this.settingsCacheService.getUpdateDocStatusToErp()
+      ) {
+        void Promise.all(
+          associatedDocs.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.READY_FOR_DISPATCH,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
+
       return {
         success: true,
-        message: `Trip ${tripId} has been cancelled successfully. ${associatedDocs.length} document(s) have been moved back to READY_FOR_DISPATCH status.`,
+        message: `Trip ${tripId} has been cancelled successfully. ${associatedDocs.length} document(s) moved back to READY_FOR_DISPATCH status.`,
         statusCode: 200,
       };
     } catch (error) {
@@ -381,7 +438,8 @@ export class TripService {
 
   async startTrip(
     tripId: number,
-    loggedInUser: JwtPayload
+    loggedInUser: JwtPayload,
+    request?: any
   ): Promise<{ success: boolean; message: string; statusCode: number }> {
     // Find the trip to validate it exists and check its status
     const trip = await this.tripRepository.findOne({
@@ -458,6 +516,135 @@ export class TripService {
       );
 
       await queryRunner.commitTransaction();
+
+      // Update ERP with ON_TRIP status for all associated documents (non-blocking)
+      if (
+        associatedDocs.length > 0 &&
+        this.settingsCacheService.getUpdateDocStatusToErp()
+      ) {
+        void Promise.all(
+          associatedDocs.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.ON_TRIP,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.ON_TRIP} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
+
+      // Send SMS to customers for all documents that moved to ON_TRIP (non-blocking)
+      if (associatedDocs.length > 0) {
+        void Promise.all(
+          associatedDocs.map(async (doc) => {
+            try {
+              // Get customer details
+              const customer = await this.customerRepository.findOne({
+                where: { id: doc.customerId },
+              });
+
+              // Check if tracking SMS is enabled via setting
+              const sendTrackingSms =
+                this.settingsCacheService.getSendTrackingSms();
+
+              if (!sendTrackingSms) {
+                console.log(
+                  `Tracking SMS disabled via setting: Skipping tracking SMS for doc ${doc.id}`
+                );
+                return;
+              }
+
+              // Skip SMS in local Windows environment unless explicitly enabled
+              if (
+                process.platform === "win32" &&
+                !GlobalConstants.ENABLE_TRACKING_SMS_IN_LOCAL
+              ) {
+                console.log(
+                  `Windows environment: Skipping tracking SMS for doc ${doc.id} (set ENABLE_TRACKING_SMS_IN_LOCAL=true to test)`
+                );
+                return;
+              }
+
+              // Determine recipient phone number based on environment
+              const isProduction = process.env.NODE_ENV === "production";
+              const recipientPhone = isProduction
+                ? customer.phone
+                : loggedInUser.mobile;
+              const recipientType = isProduction
+                ? "customer"
+                : "logged-in user";
+
+              if (recipientPhone) {
+                // Prepare SMS variables
+                const variableMap = new Map();
+                variableMap.set("VAR1", doc.id);
+
+                variableMap.set(
+                  "VAR2",
+                  `${Buffer.from(doc.id).toString("base64")}`
+                );
+
+                // Build URL parameters from variables
+                let urlParams = "";
+                variableMap.forEach((value, key) => {
+                  urlParams =
+                    urlParams +
+                    "&" +
+                    key.toLowerCase() +
+                    "=" +
+                    encodeURIComponent(value);
+                });
+
+                // Send SMS using 2factor.in API
+                const smsTemplateName = process.env.TRACK_SMS_TEMPLATE;
+                const smsUrl =
+                  GlobalConstants.SEND_SMS_URL_TEMPLATE.replace(
+                    "{apikey}",
+                    GlobalConstants.SMS_API_KEY
+                  )
+                    .replace("{recipientMobileNumber}", recipientPhone)
+                    .replace("{smsTemplateName}", smsTemplateName) + urlParams;
+
+                await axios.get(smsUrl, {
+                  timeout: 10000,
+                  headers: {
+                    "User-Agent": "Mozilla/5.0",
+                  },
+                });
+
+                console.log(
+                  `SMS with URL ${smsUrl} sent successfully to ${recipientType} ${
+                    isProduction ? customer.id : loggedInUser.id
+                  } (${recipientPhone}) for doc ${doc.id}${
+                    !isProduction
+                      ? " [NON-PRODUCTION: redirected to logged-in user]"
+                      : " [PRODUCTION: sent to customer]"
+                  }`
+                );
+              } else {
+                console.log(
+                  `Skipping SMS for doc ${doc.id} - customer ${doc.customerId} has no phone number`
+                );
+              }
+            } catch (error) {
+              console.error(
+                `Failed to send SMS for doc ${doc.id} to customer ${doc.customerId}`
+              );
+            }
+          })
+        );
+      }
 
       return {
         success: true,
@@ -861,6 +1048,34 @@ export class TripService {
 
       await queryRunner.commitTransaction();
 
+      // The ERP API only accepts a single docId, so send the request one by one for each doc.
+      // Fire off all ERP API requests in parallel; don't await for each to finish
+      if (
+        docsToMarkUndelivered.length > 0 &&
+        this.settingsCacheService.getUpdateDocStatusToErp()
+      ) {
+        void Promise.all(
+          docsToMarkUndelivered.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.UNDELIVERED,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.UNDELIVERED} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
+
       return {
         success: true,
         message: `Trip ${tripId} has been force ended successfully. ${docsToMarkUndelivered.length} document(s) marked as undelivered.`,
@@ -965,6 +1180,32 @@ export class TripService {
 
       await queryRunner.commitTransaction();
 
+      // The ERP API only accepts a single docId, so send the request one by one for each doc.
+      // Fire off all ERP API requests in parallel; don't await for each to finish
+      if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+        void Promise.all(
+          docsToUpdate.map((doc) =>
+            axios
+              .post(
+                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                {
+                  docId: doc.id,
+                  status: DocStatus.AT_TRANSIT_HUB,
+                  userId: loggedInUser.id,
+                },
+                { headers: GlobalConstants.ERP_API_HEADERS }
+              )
+              .catch((e) => {
+                // Optionally log error here; errors won't block main flow
+                console.error(
+                  `Failed to update doc ${doc.id} with status ${DocStatus.AT_TRANSIT_HUB} at ERP API:`,
+                  e
+                );
+              })
+          )
+        );
+      }
+
       return {
         success: true,
         message: `Successfully dropped off ${docsToUpdate.length} document(s) from lot '${lotHeading}' at transit hub.`,
@@ -983,7 +1224,7 @@ export class TripService {
     driverId: string | null,
     noTripsMessage: string,
     foundTripsMessage: string
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     // Build the where condition
     const whereCondition: any = {
       status: TripStatus.SCHEDULED,
@@ -1025,7 +1266,7 @@ export class TripService {
         ? noTripsMessage
         : `Found ${tripsWithDetails.length} ${foundTripsMessage}.`;
 
-    const response: ScheduledTripsResponseDto = {
+    const response: TripsResponseDto = {
       success: true,
       message: message,
       trips: tripsWithDetails,
@@ -1036,9 +1277,7 @@ export class TripService {
     return response;
   }
 
-  async getMyTrips(
-    loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  async getMyTrips(loggedInUser: JwtPayload): Promise<TripsResponseDto> {
     // Build the where condition for SCHEDULED or STARTED trips
     const whereCondition: any = {
       drivenBy: loggedInUser.id,
@@ -1057,7 +1296,8 @@ export class TripService {
         },
       },
       order: {
-        createdAt: "DESC",
+        status: "DESC", // STARTED comes before SCHEDULED (alphabetically DESC)
+        createdAt: "DESC", // Within each status, newest first
       },
     });
 
@@ -1071,7 +1311,7 @@ export class TripService {
         ? "No trips found for you."
         : `Found ${tripsWithDetails.length} trip(s) found for you.`;
 
-    const response: ScheduledTripsResponseDto = {
+    const response: TripsResponseDto = {
       success: true,
       message: message,
       trips: tripsWithDetails,
@@ -1083,15 +1323,67 @@ export class TripService {
   }
 
   private async populateTripOutputDto(trip: Trip): Promise<TripOutputDto> {
-    // Get driver's last known location (within last 24 hours)
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const driverLastLocation = await this.locationHeartbeatRepository.findOne({
-      where: {
-        appUserId: trip.drivenBy,
-        receivedAt: MoreThanOrEqual(twentyFourHoursAgo),
-      },
-      order: { receivedAt: "DESC" },
+    let driverLastLocation = null;
+    let driverLastKnownLatitude = "";
+    let driverLastKnownLongitude = "";
+    let driverLastLocationUpdateTime = null;
+
+    // Only populate driver location for STARTED trips
+    if (trip.status === TripStatus.STARTED && trip.startedAt) {
+      // Get driver's location heartbeat that occurred after trip start time minus 1 minute
+      const oneMinuteBeforeStart = new Date(
+        trip.startedAt.getTime() - 60 * 1000
+      );
+
+      driverLastLocation = await this.locationHeartbeatRepository.findOne({
+        where: {
+          appUserId: trip.drivenBy,
+          receivedAt: MoreThanOrEqual(oneMinuteBeforeStart),
+        },
+        order: { receivedAt: "DESC" },
+      });
+
+      if (driverLastLocation) {
+        driverLastKnownLatitude = driverLastLocation.geoLatitude || "";
+        driverLastKnownLongitude = driverLastLocation.geoLongitude || "";
+        driverLastLocationUpdateTime = driverLastLocation.receivedAt;
+      }
+    }
+
+    // Fetch all documents for this trip to calculate the new attributes
+    const docs = await this.docRepository.find({
+      where: { tripId: trip.id },
     });
+    if (trip.id == 57) {
+      console.log(docs);
+    }
+
+    // Calculate pendingDirectDeliveries: docs with null lot (direct deliveries) that are NOT DELIVERED/UNDELIVERED
+    const directDeliveryDocs = docs.filter((doc) => doc.lot === null);
+    const pendingDirectDeliveries = directDeliveryDocs.filter(
+      (doc) =>
+        doc.status !== DocStatus.DELIVERED &&
+        doc.status !== DocStatus.UNDELIVERED
+    ).length;
+
+    // Calculate totalDirectDeliveries: all docs with null lot (direct deliveries) - ignore status
+    const totalDirectDeliveries = directDeliveryDocs.length;
+
+    // Calculate pendingLotDropOffs: number of unique lot groups (docs with populated lot)
+    const lotGroups = new Set(
+      docs.map((doc) => doc.lot).filter((lot) => lot !== null)
+    );
+    const pendingLotDropOffs = lotGroups.size;
+
+    let deliveryCountStatusMsg = "";
+    let dropoffCountStatusMsg = "";
+    if (trip.status === TripStatus.SCHEDULED) {
+      deliveryCountStatusMsg = `Direct Deliveries: ${totalDirectDeliveries}`;
+      dropoffCountStatusMsg = `Lots To Be Dropped Off: ${pendingLotDropOffs}`;
+    } else {
+      deliveryCountStatusMsg = `Deliveries: ${pendingDirectDeliveries} pending out of ${totalDirectDeliveries}`;
+      dropoffCountStatusMsg = `Pending Drop Off Lots: ${pendingLotDropOffs}`;
+    }
 
     return {
       tripId: trip.id,
@@ -1107,10 +1399,16 @@ export class TripService {
       lastUpdatedAt: trip.lastUpdatedAt,
       creatorLocation: trip.creator.baseLocation?.name || "",
       driverLocation: trip.driver.baseLocation?.name || "",
-      // Driver's last known location
-      driverLastKnownLatitude: driverLastLocation?.geoLatitude || "",
-      driverLastKnownLongitude: driverLastLocation?.geoLongitude || "",
-      driverLastLocationUpdateTime: driverLastLocation?.receivedAt || null,
+      // Driver's last known location (only for STARTED trips)
+      driverLastKnownLatitude: driverLastKnownLatitude,
+      driverLastKnownLongitude: driverLastKnownLongitude,
+      driverLastLocationUpdateTime: driverLastLocationUpdateTime,
+      // New attributes
+      pendingDirectDeliveries: pendingDirectDeliveries,
+      totalDirectDeliveries: totalDirectDeliveries,
+      deliveryCountStatusMsg: deliveryCountStatusMsg,
+      pendingLotDropOffs: pendingLotDropOffs,
+      dropOffCountStatusMsg: dropoffCountStatusMsg,
     };
   }
 

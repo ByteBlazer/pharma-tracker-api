@@ -7,7 +7,16 @@ import { InjectRepository } from "@nestjs/typeorm";
 import * as JsBarcode from "jsbarcode";
 import * as PDFDocument from "pdfkit";
 import { DocStatus } from "src/enums/doc-status.enum";
-import { DataSource, In, Like, MoreThan, Not, Repository } from "typeorm";
+import { TripStatus } from "src/enums/trip-status.enum";
+import {
+  DataSource,
+  In,
+  Like,
+  MoreThan,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from "typeorm";
 import axios from "axios";
 
 import { GlobalConstants } from "src/GlobalConstants";
@@ -73,6 +82,7 @@ export class DocService {
             user: loggedInUser.username,
           },
           headers: GlobalConstants.ERP_API_HEADERS,
+          timeout: 3000, // 3 second timeout
         }
       );
 
@@ -87,6 +97,8 @@ export class DocService {
           customerName: response.data.customerName,
           customerAddress: response.data.customerAddress,
           customerCity: response.data.customerCity,
+          customerPhone: response.data.customerPhone,
+          customerPinCode: response.data.customerPinCode,
           invoiceDate: response.data.invoiceDate,
           invoiceAmount: response.data.invoiceAmount,
           docDate: response.data.invoiceDate,
@@ -95,8 +107,14 @@ export class DocService {
         erpMatchFound = true;
       }
     } catch (error) {
-      console.error("Error fetching document from ERP API:", error);
-      // If API call fails, continue with erpMatchFound = false
+      console.error("Error fetching document from ERP API");
+      return {
+        success: false,
+        message:
+          "ERP API Server is not responding. Please check with ERP Team.",
+        docId: docId,
+        statusCode: 400,
+      };
     }
 
     // Check if document already exists in database
@@ -105,9 +123,21 @@ export class DocService {
     });
     if (existingDoc) {
       if (docFromErp) {
+        let dbUpdateRequiredBecauseOfErpMismatch = false;
         //TODO: If existing doc and existing doc status does not equals delivered, and ERP status is delivered,then return a custom error message.
-        //Flip our DB too.
-        //Also update lot
+        if (docFromErp.status === DocStatus.DELIVERED) {
+          if (existingDoc.status !== DocStatus.DELIVERED) {
+            existingDoc.status = DocStatus.DELIVERED;
+            dbUpdateRequiredBecauseOfErpMismatch = true;
+          }
+        }
+        if (existingDoc.lot !== docFromErp.lotNbr) {
+          existingDoc.lot = docFromErp.lotNbr;
+          dbUpdateRequiredBecauseOfErpMismatch = true;
+        }
+        if (dbUpdateRequiredBecauseOfErpMismatch) {
+          await this.docRepository.save(existingDoc);
+        }
       }
 
       const previousDocStatus = existingDoc.status;
@@ -121,10 +151,27 @@ export class DocService {
         existingDoc.lastScannedBy = loggedInUser.id;
         existingDoc.lastUpdatedAt = new Date();
         existingDoc.status = DocStatus.READY_FOR_DISPATCH;
-        // Clear transit hub coordinates when moving to READY_FOR_DISPATCH
-        existingDoc.transitHubLatitude = null;
-        existingDoc.transitHubLongitude = null;
+
         await this.docRepository.save(existingDoc);
+
+        // Update ERP with READY_FOR_DISPATCH status for existing document re-scan (non-blocking)
+        if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+          void axios
+            .post(
+              `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+              {
+                docId: docId,
+                status: DocStatus.READY_FOR_DISPATCH,
+                userId: loggedInUser.id,
+              },
+              { headers: GlobalConstants.ERP_API_HEADERS }
+            )
+            .catch((e) => {
+              console.error(
+                `Failed to update doc ${docId} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API`
+              );
+            });
+        }
       }
 
       // Handle different document statuses
@@ -205,7 +252,7 @@ export class DocService {
     if (!matchedDoc) {
       return {
         success: false,
-        message: "Doc ID not found in ERP", //as well as mock data
+        message: "Doc ID " + docId + " not found in ERP", //as well as mock data
         docId: docId,
         statusCode: 400, // Bad Request
       };
@@ -301,6 +348,26 @@ export class DocService {
         docId: docId,
         statusCode: 500, // Internal Server Error
       };
+    }
+
+    // Update ERP with READY_FOR_DISPATCH status for new document (non-blocking)
+    if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+      void axios
+        .post(
+          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          {
+            docId: docId,
+            status: DocStatus.READY_FOR_DISPATCH,
+            userId: loggedInUser.id,
+          },
+          { headers: GlobalConstants.ERP_API_HEADERS }
+        )
+        .catch((e) => {
+          console.error(
+            `Failed to update doc ${docId} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
+            e
+          );
+        });
     }
 
     return {
@@ -539,7 +606,7 @@ export class DocService {
           }));
         }
       } catch (error) {
-        console.error("Error fetching documents from ERP API:", error);
+        console.error("Error fetching documents from ERP API");
         // If API call fails, use empty array as fallback
         docsFromErp = [];
       }
@@ -644,7 +711,7 @@ export class DocService {
     mockDocs: any[],
     mockOfMocks: boolean
   ): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
         const buffers: Buffer[] = [];
@@ -672,7 +739,8 @@ export class DocService {
           const cellWidth = pageWidth / 2;
           const cellHeight = pageHeight / 2;
 
-          pageDocs.forEach((docData, gridIndex) => {
+          for (let gridIndex = 0; gridIndex < pageDocs.length; gridIndex++) {
+            const docData = pageDocs[gridIndex];
             const row = Math.floor(gridIndex / 2);
             const col = gridIndex % 2;
 
@@ -710,6 +778,36 @@ export class DocService {
                 .text(`Amount: Rs. ${docData.docAmount}`)
                 .text(`Status: ${docData.status || "Blank"}`)
                 .moveDown(0.3);
+            } else {
+              //Call the ERP API to get the document details
+              try {
+                const response = await axios.get(
+                  `${GlobalConstants.ERP_API_BASE_URL}/document`,
+                  {
+                    params: {
+                      doc_id: docData.docId,
+                      user: "mock-admin",
+                    },
+                    headers: GlobalConstants.ERP_API_HEADERS,
+                  }
+                );
+
+                doc
+                  .fontSize(8)
+                  .text(`Customer: ${response.data.customerName || "N/A"}`)
+                  .text(`Phone: ${response.data.customerPhone || "N/A"}`)
+                  .text(`Route: ${response.data.routeName || "N/A"}`)
+                  .text(`Lot: ${response.data.lotNbr || "N/A"}`)
+                  .text(`Date: ${response.data.invoiceDate || "N/A"}`)
+                  .text(`Amount: Rs. ${response.data.invoiceAmount || "N/A"}`)
+                  .text(`Status: ${response.data.status || "N/A"}`)
+                  .moveDown(0.3);
+              } catch (error) {
+                console.error(
+                  "Unable to hit ERP API, so showing only barcode image " +
+                    error
+                );
+              }
             }
 
             // Generate barcode
@@ -729,7 +827,7 @@ export class DocService {
 
             // Restore position
             doc.restore();
-          });
+          }
         }
 
         doc.end();
@@ -741,7 +839,8 @@ export class DocService {
 
   async markDelivery(
     docId: string,
-    markDeliveryDto: MarkDeliveryDto
+    markDeliveryDto: MarkDeliveryDto,
+    loggedInUser: JwtPayload
   ): Promise<{
     success: boolean;
     message: string;
@@ -767,7 +866,7 @@ export class DocService {
     }
 
     // Use transaction for data consistency
-    return await this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       // Mark as delivered
       await manager.update(Doc, docId, {
         status: DocStatus.DELIVERED,
@@ -820,11 +919,35 @@ export class DocService {
         statusCode: 200,
       };
     });
+
+    // Update ERP with DELIVERED status (non-blocking)
+    if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+      console.log("Updating doc status to ERP API");
+      void axios
+        .post(
+          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          {
+            docId: docId,
+            status: DocStatus.DELIVERED,
+            userId: loggedInUser.id,
+          },
+          { headers: GlobalConstants.ERP_API_HEADERS }
+        )
+        .catch((e) => {
+          console.error(
+            `Failed to update doc ${docId} with status ${DocStatus.DELIVERED} at ERP API:`,
+            e
+          );
+        });
+    }
+    console.log("results", result);
+    return result;
   }
 
   async markDeliveryFailed(
     docId: string,
-    markDeliveryFailedDto: MarkDeliveryFailedDto
+    markDeliveryFailedDto: MarkDeliveryFailedDto,
+    loggedInUser: JwtPayload
   ): Promise<{
     success: boolean;
     message: string;
@@ -848,6 +971,26 @@ export class DocService {
       lastUpdatedAt: new Date(),
       comment: markDeliveryFailedDto.failureComment,
     });
+
+    // Update ERP with UNDELIVERED status (non-blocking)
+    if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+      void axios
+        .post(
+          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          {
+            docId: docId,
+            status: DocStatus.UNDELIVERED,
+            userId: loggedInUser.id,
+          },
+          { headers: GlobalConstants.ERP_API_HEADERS }
+        )
+        .catch((e) => {
+          console.error(
+            `Failed to update doc ${docId} with status ${DocStatus.UNDELIVERED} at ERP API:`,
+            e
+          );
+        });
+    }
 
     return {
       success: true,
@@ -901,11 +1044,6 @@ export class DocService {
 
     // Handle different statuses
     switch (doc.status) {
-      case DocStatus.READY_FOR_DISPATCH:
-      case DocStatus.TRIP_SCHEDULED:
-        // Just return the status
-        break;
-
       case DocStatus.DELIVERED:
         // Return status, comment, and delivery timestamp from signature
         response.comment = doc.comment;
@@ -931,28 +1069,30 @@ export class DocService {
         });
 
         if (trip) {
-          // Check if trip started within last 48 hours
-          const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+          // Add customer location if available
+          if (
+            doc.customer &&
+            doc.customer.geoLatitude &&
+            doc.customer.geoLongitude
+          ) {
+            response.customerLocation = {
+              latitude: doc.customer.geoLatitude,
+              longitude: doc.customer.geoLongitude,
+            };
+          }
 
-          if (trip.createdAt >= fortyEightHoursAgo) {
-            // Add customer location if available
-            if (
-              doc.customer &&
-              doc.customer.geoLatitude &&
-              doc.customer.geoLongitude
-            ) {
-              response.customerLocation = {
-                latitude: doc.customer.geoLatitude,
-                longitude: doc.customer.geoLongitude,
-              };
-            }
+          // Only get driver location for STARTED trips
+          if (trip.status === TripStatus.STARTED && trip.startedAt) {
+            // Get driver's location heartbeat that occurred after trip start time minus 1 minute
+            const oneMinuteBeforeStart = new Date(
+              trip.startedAt.getTime() - 60 * 1000
+            );
 
-            // Get driver's last known location in the last 48 hours
             const driverLocation =
               await this.locationHeartbeatRepository.findOne({
                 where: {
                   appUserId: trip.drivenBy,
-                  receivedAt: MoreThan(fortyEightHoursAgo),
+                  receivedAt: MoreThanOrEqual(oneMinuteBeforeStart),
                 },
                 order: {
                   receivedAt: "DESC",
@@ -966,22 +1106,49 @@ export class DocService {
                 receivedAt: driverLocation.receivedAt,
               };
 
-              // Calculate otherCustomersServiceTime
-              response.otherCustomersServiceTime =
-                await this.calculateOtherCustomersServiceTime(
+              // Calculate enrouteCustomersServiceTime and numEnrouteCustomers
+              const enrouteCustomersInfo =
+                await this.calculateEnrouteCustomersInfo(
                   doc,
                   trip,
                   driverLocation
                 );
+              response.enrouteCustomersServiceTime =
+                enrouteCustomersInfo.serviceTime;
+              response.numEnrouteCustomers =
+                enrouteCustomersInfo.numEnrouteCustomers;
+
+              // Calculate ETA if both customer and driver locations are available
+              if (
+                doc.customer &&
+                doc.customer.geoLatitude &&
+                doc.customer.geoLongitude &&
+                driverLocation.geoLatitude &&
+                driverLocation.geoLongitude
+              ) {
+                response.eta = await this.calculateETA(
+                  driverLocation.geoLatitude,
+                  driverLocation.geoLongitude,
+                  doc.customer.geoLatitude,
+                  doc.customer.geoLongitude
+                );
+              }
             } else {
               // Driver location not available
-              response.otherCustomersServiceTime = undefined;
+              response.enrouteCustomersServiceTime = undefined;
+              response.numEnrouteCustomers = undefined;
             }
+          } else {
+            // Trip not started or ended - no driver location
+            response.enrouteCustomersServiceTime = undefined;
+            response.numEnrouteCustomers = undefined;
           }
         }
         break;
 
       case DocStatus.AT_TRANSIT_HUB:
+      case DocStatus.READY_FOR_DISPATCH:
+      case DocStatus.TRIP_SCHEDULED:
         // Add customer location if available
         if (
           doc.customer &&
@@ -1003,7 +1170,7 @@ export class DocService {
           };
         }
 
-        // No otherCustomersServiceTime calculation for transit hub status
+        // No enrouteCustomersServiceTime or ETA calculation for transit hub status
         // since the document is not on an active trip
         break;
 
@@ -1012,14 +1179,27 @@ export class DocService {
         break;
     }
 
+    // If no ETA was calculated in any of the status cases, set it to -1
+    if (response.eta === undefined) {
+      response.eta = -1;
+    }
+
+    // If no numEnrouteCustomers was calculated in any of the status cases, set it to -1
+    if (response.numEnrouteCustomers === undefined) {
+      response.numEnrouteCustomers = -1;
+    }
+
     return response;
   }
 
-  private async calculateOtherCustomersServiceTime(
+  private async calculateEnrouteCustomersInfo(
     currentDoc: Doc,
     trip: Trip,
     driverLocation: LocationHeartbeat
-  ): Promise<number | undefined> {
+  ): Promise<{
+    serviceTime: number | undefined;
+    numEnrouteCustomers: number | undefined;
+  }> {
     try {
       // Check if current document's customer has location
       if (
@@ -1027,11 +1207,11 @@ export class DocService {
         !currentDoc.customer.geoLatitude ||
         !currentDoc.customer.geoLongitude
       ) {
-        return undefined; // Current customer has no location
+        return { serviceTime: undefined, numEnrouteCustomers: undefined }; // Current customer has no location
       }
 
       // Get all other documents in the same trip with ON_TRIP status only
-      const otherDocs = await this.docRepository.find({
+      const enrouteDocs = await this.docRepository.find({
         where: {
           tripId: trip.id,
           id: Not(currentDoc.id), // Exclude current document
@@ -1040,8 +1220,8 @@ export class DocService {
         relations: ["customer"],
       });
 
-      if (otherDocs.length === 0) {
-        return 0; // No other customers to serve
+      if (enrouteDocs.length === 0) {
+        return { serviceTime: 0, numEnrouteCustomers: 0 }; // No enroute customers to serve
       }
 
       // Get driver coordinates
@@ -1049,11 +1229,11 @@ export class DocService {
       const driverLng = parseFloat(driverLocation.geoLongitude);
 
       if (isNaN(driverLat) || isNaN(driverLng)) {
-        return undefined; // Driver location not available
+        return { serviceTime: undefined, numEnrouteCustomers: undefined }; // Driver location not available
       }
 
       // Calculate distances and sort documents by proximity to driver
-      const docsWithDistance = otherDocs.map((doc) => {
+      const docsWithDistance = enrouteDocs.map((doc) => {
         let distance = 0;
 
         if (
@@ -1085,7 +1265,7 @@ export class DocService {
       const currentCustomerLng = parseFloat(currentDoc.customer.geoLongitude);
 
       if (isNaN(currentCustomerLat) || isNaN(currentCustomerLng)) {
-        return undefined; // Current customer location invalid
+        return { serviceTime: undefined, numEnrouteCustomers: undefined }; // Current customer location invalid
       }
 
       const currentDistance = this.calculateDistance(
@@ -1106,11 +1286,25 @@ export class DocService {
       }
 
       // Calculate service time: number of customers before current × 10 minutes
-      return customersBeforeCurrent * 10;
+      const serviceTime = customersBeforeCurrent * 10;
+      return { serviceTime, numEnrouteCustomers: customersBeforeCurrent };
     } catch (error) {
-      console.error("Error calculating other customers service time:", error);
-      return undefined; // Return undefined on error
+      console.error("Error calculating enroute customers info:", error);
+      return { serviceTime: undefined, numEnrouteCustomers: undefined }; // Return undefined on error
     }
+  }
+
+  private async calculateEnrouteCustomersServiceTime(
+    currentDoc: Doc,
+    trip: Trip,
+    driverLocation: LocationHeartbeat
+  ): Promise<number | undefined> {
+    const result = await this.calculateEnrouteCustomersInfo(
+      currentDoc,
+      trip,
+      driverLocation
+    );
+    return result.serviceTime;
   }
 
   private calculateDistance(
@@ -1135,5 +1329,111 @@ export class DocService {
 
   private toRadians(degrees: number): number {
     return degrees * (Math.PI / 180);
+  }
+
+  private async calculateETA(
+    driverLatitude: string,
+    driverLongitude: string,
+    customerLatitude: string,
+    customerLongitude: string
+  ): Promise<number> {
+    try {
+      const response = await axios.get(
+        "https://maps.googleapis.com/maps/api/distancematrix/json",
+        {
+          params: {
+            origins: `${driverLatitude},${driverLongitude}`,
+            destinations: `${customerLatitude},${customerLongitude}`,
+            departure_time: "now", // Use current time for traffic conditions
+            traffic_model: "best_guess", // Consider traffic conditions
+            key: GlobalConstants.GOOGLE_MAPS_API_KEY,
+          },
+        }
+      );
+
+      if (response.data.status === "OK" && response.data.rows.length > 0) {
+        const element = response.data.rows[0].elements[0];
+
+        if (element.status === "OK") {
+          // Return duration in traffic in minutes
+          const durationInSeconds =
+            element.duration_in_traffic?.value || element.duration?.value;
+
+          if (durationInSeconds != null && durationInSeconds != undefined) {
+            return Math.ceil(durationInSeconds / 60); // Convert to minutes and round up
+          }
+        }
+      }
+
+      return -1;
+    } catch (error) {
+      console.error("Error calculating ETA with Google Maps");
+      return -1;
+    }
+  }
+
+  async getDeliveryStatus(docId: string): Promise<{
+    success: boolean;
+    message: string;
+    docId: string;
+    status: string;
+    comment?: string;
+    signature?: string;
+    deliveredAt?: Date;
+    statusCode: number;
+  }> {
+    // Find the document
+    const doc = await this.docRepository.findOne({
+      where: { id: docId },
+      relations: ["customer"],
+    });
+
+    if (!doc) {
+      throw new NotFoundException("Document not found in the system");
+    }
+
+    // Check if document is in a final delivery state
+    if (
+      doc.status !== DocStatus.DELIVERED &&
+      doc.status !== DocStatus.UNDELIVERED
+    ) {
+      return {
+        success: false,
+        message: `Document is not in a final delivery state. Current status: ${doc.status}`,
+        docId: docId,
+        status: doc.status,
+        statusCode: 400,
+      };
+    }
+
+    let signature = undefined;
+    let deliveredAt = undefined;
+
+    // Get signature if document is delivered
+    if (doc.status === DocStatus.DELIVERED) {
+      const signatureRecord = await this.signatureRepository.findOne({
+        where: { docId: docId },
+      });
+
+      if (signatureRecord) {
+        // Convert signature buffer to base64 string
+        signature = signatureRecord.signature.toString("base64");
+        // Ensure deliveredAt is in UTC format
+        deliveredAt = signatureRecord.lastUpdatedAt
+          ? new Date(signatureRecord.lastUpdatedAt).toISOString()
+          : undefined;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Document delivery status retrieved successfully`,
+      docId: docId,
+      status: doc.status,
+      comment: doc.comment,
+      signature: signature,
+      deliveredAt: deliveredAt,
+      statusCode: 200,
+    };
   }
 }

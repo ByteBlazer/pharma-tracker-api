@@ -192,10 +192,15 @@ export class DocController {
   async markDelivery(
     @Param("docId") docId: string,
     @Body() markDeliveryDto: MarkDeliveryDto,
+    @LoggedInUser() loggedInUser: JwtPayload,
     @Res() res: Response
   ): Promise<void> {
     try {
-      const result = await this.docService.markDelivery(docId, markDeliveryDto);
+      const result = await this.docService.markDelivery(
+        docId,
+        markDeliveryDto,
+        loggedInUser
+      );
 
       res.status(result.statusCode).json({
         success: result.success,
@@ -225,12 +230,14 @@ export class DocController {
   async markDeliveryFailed(
     @Param("docId") docId: string,
     @Body() markDeliveryFailedDto: MarkDeliveryFailedDto,
+    @LoggedInUser() loggedInUser: JwtPayload,
     @Res() res: Response
   ): Promise<void> {
     try {
       const result = await this.docService.markDeliveryFailed(
         docId,
-        markDeliveryFailedDto
+        markDeliveryFailedDto,
+        loggedInUser
       );
 
       res.status(result.statusCode).json({
@@ -298,6 +305,57 @@ export class DocController {
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
           message: "Failed to track document",
+          error: error.message,
+        });
+      }
+    }
+  }
+
+  @Get("delivery-status/:docId")
+  @RequireRoles(UserRole.WEB_ACCESS)
+  async getDeliveryStatus(
+    @Param("docId") docId: string,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      // Try to decode base64, if it fails, use the docId as-is
+      let actualDocId = docId;
+      try {
+        const decoded = Buffer.from(docId, "base64").toString("utf-8");
+        // Only use decoded value if it looks like a valid docId (contains F01-)
+        if (decoded.includes("F01-")) {
+          actualDocId = decoded;
+        }
+      } catch (decodeError) {
+        // If base64 decode fails, use original docId
+        console.log("Not a base64 encoded docId, using as-is:", docId);
+      }
+
+      const result = await this.docService.getDeliveryStatus(actualDocId);
+
+      res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        docId: result.docId,
+        requestedDocId: docId, // Original parameter (might be base64)
+        actualDocId: actualDocId, // Decoded/actual docId used
+        status: result.status,
+        comment: result.comment,
+        signature: result.signature,
+        deliveredAt: result.deliveredAt,
+      });
+    } catch (error) {
+      console.log(error);
+      if (error instanceof Error && error.message.includes("not found")) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: error.message,
+          docId: docId,
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Failed to get delivery status",
           error: error.message,
         });
       }

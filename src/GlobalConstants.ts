@@ -5,16 +5,26 @@ export class GlobalConstants {
     "https://2factor.in/API/V1/{apikey}/SMS/VERIFY3/{mobilePhone}/{otp}";
   static readonly SEND_SMS_URL_TEMPLATE =
     "https://2factor.in/API/R1/?module=TRANS_SMS&apikey={apikey}&to={recipientMobileNumber}&from=BTBLZR&templatename={smsTemplateName}";
-  static readonly SMS_OTP_TEMPLATE = "PHARMA_OTP_V6";
+  static readonly SMS_OTP_TEMPLATE = "PHARMA_OTP_V9";
 
-  // ERP API Configuration
-  static readonly ERP_API_BASE_URL = "https://sit-api.1c2.in:4431/delivery";
-  static readonly ERP_API_PROD_CODE = "DEV-DELCONN";
-  static readonly ERP_API_TOKEN = "f1e069787ece74";
+  static readonly SMS_API_KEY = "397be28f-2352-11ec-a13b-0200cd936042";
+
+  // Tracking SMS Control - Set to true to enable tracking SMS sending in local Windows environment
+  static readonly ENABLE_TRACKING_SMS_IN_LOCAL = true;
+
+  static readonly GOOGLE_MAPS_API_KEY =
+    "AIzaSyB-M95qSZan9nDkd1kcg7HYhTjG8gwd2FE";
+
+  // ERP API Configuration - using environment variables
+  static readonly ERP_API_BASE_URL = process.env.ERP_API_BASE_URL;
   static readonly ERP_API_HEADERS = {
-    "x-api-prod-code": "DEV-DELCONN",
-    "x-api-token": "f1e069787ece74",
+    "x-api-prod-code": process.env.ERP_API_PROD_CODE,
+    "x-api-token": process.env.ERP_API_TOKEN,
   };
+
+  static readonly ERP_API_STATUS_UPDATE_HOOK_URL =
+    this.ERP_API_BASE_URL + "/document/status";
+
   static readonly FALLBACK_LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS = 60;
   static readonly FALLBACK_SCAN_ROUTE_TIMEOUT_SECONDS = 10;
 
