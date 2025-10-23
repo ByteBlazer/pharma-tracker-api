@@ -11,7 +11,7 @@ import {
 } from "@nestjs/common";
 import { TripService } from "../services/trip.service";
 import { CreateTripDto } from "../dto/create-trip.dto";
-import { ScheduledTripsResponseDto } from "../dto/scheduled-trips-response.dto";
+import { TripsResponseDto } from "../dto/trips-response.dto";
 import { TripDetailsOutputDto } from "../dto/trip-details-output.dto";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { RequireRoles } from "../decorators/require-roles.decorator";
@@ -41,41 +41,41 @@ export class TripController {
   @Get("scheduled-trips-same-location")
   async getScheduledTripsFromSameLocation(
     @LoggedInUser() loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     return await this.tripService.getScheduledTripsFromSameLocation(
       loggedInUser
     );
   }
 
   @Get("scheduled-trips")
-  async getAllScheduledTrips(): Promise<ScheduledTripsResponseDto> {
+  async getAllScheduledTrips(): Promise<TripsResponseDto> {
     return await this.tripService.getAllScheduledTrips();
   }
 
   @Get("all-trips")
   @RequireRoles(UserRole.WEB_ACCESS)
-  async getAllTrips(): Promise<ScheduledTripsResponseDto> {
+  async getAllTrips(): Promise<TripsResponseDto> {
     return await this.tripService.getAllTrips();
   }
 
   @Get("scheduled-trips/driver/:driverId")
   async getAllScheduledTripsForDriver(
     @Param("driverId") driverId: string
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     return await this.tripService.getAllScheduledTripsForDriver(driverId);
   }
 
   @Get("my-scheduled-trips")
   async getAllMyScheduledTrips(
     @LoggedInUser() loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     return await this.tripService.getAllMyScheduledTrips(loggedInUser);
   }
 
   @Get("my-trips")
   async getMyTrips(
     @LoggedInUser() loggedInUser: JwtPayload
-  ): Promise<ScheduledTripsResponseDto> {
+  ): Promise<TripsResponseDto> {
     return await this.tripService.getMyTrips(loggedInUser);
   }
 
