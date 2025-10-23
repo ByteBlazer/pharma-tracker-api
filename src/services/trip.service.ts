@@ -425,7 +425,7 @@ export class TripService {
 
       return {
         success: true,
-        message: `Trip ${tripId} has been cancelled successfully. ${associatedDocs.length} document(s) have been moved back to READY_FOR_DISPATCH status.`,
+        message: `Trip ${tripId} has been cancelled successfully. ${associatedDocs.length} document(s) moved back to READY_FOR_DISPATCH status.`,
         statusCode: 200,
       };
     } catch (error) {
