@@ -16,11 +16,10 @@ export class GlobalConstants {
     "AIzaSyB-M95qSZan9nDkd1kcg7HYhTjG8gwd2FE";
 
   // ERP API Configuration - using environment variables
-  static readonly ERP_API_BASE_URL =
-    process.env.ERP_API_BASE_URL || "https://sit-api.1c2.in:4431/delivery";
+  static readonly ERP_API_BASE_URL = process.env.ERP_API_BASE_URL;
   static readonly ERP_API_HEADERS = {
-    "x-api-prod-code": process.env.ERP_API_PROD_CODE || "DEV-DELCONN",
-    "x-api-token": process.env.ERP_API_TOKEN || "f1e069787ece74",
+    "x-api-prod-code": process.env.ERP_API_PROD_CODE,
+    "x-api-token": process.env.ERP_API_TOKEN,
   };
 
   static readonly ERP_API_STATUS_UPDATE_HOOK_URL =
