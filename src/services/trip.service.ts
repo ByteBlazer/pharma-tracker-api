@@ -1375,6 +1375,16 @@ export class TripService {
     );
     const pendingLotDropOffs = lotGroups.size;
 
+    let deliveryCountStatusMsg = "";
+    let dropoffCountStatusMsg = "";
+    if (trip.status === TripStatus.SCHEDULED) {
+      deliveryCountStatusMsg = `Direct Deliveries: ${totalDirectDeliveries}`;
+      dropoffCountStatusMsg = `Lots To Be Dropped Off: ${pendingLotDropOffs}`;
+    } else {
+      deliveryCountStatusMsg = `Deliveries: ${pendingDirectDeliveries} pending out of ${totalDirectDeliveries}`;
+      dropoffCountStatusMsg = `Pending Drop Off Lots: ${pendingLotDropOffs}`;
+    }
+
     return {
       tripId: trip.id,
       createdBy: trip.creator.personName,
@@ -1396,9 +1406,9 @@ export class TripService {
       // New attributes
       pendingDirectDeliveries: pendingDirectDeliveries,
       totalDirectDeliveries: totalDirectDeliveries,
-      deliveryCountStatusMsg: `Deliveries: ${pendingDirectDeliveries} pending out of ${totalDirectDeliveries}`,
+      deliveryCountStatusMsg: deliveryCountStatusMsg,
       pendingLotDropOffs: pendingLotDropOffs,
-      dropOffCountStatusMsg: `Lot Drop Offs Pending: ${pendingLotDropOffs}`,
+      dropOffCountStatusMsg: dropoffCountStatusMsg,
     };
   }
 
