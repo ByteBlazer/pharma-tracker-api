@@ -589,6 +589,7 @@ export class DocService {
 
     if (!mockOfMocks) {
       try {
+        console.log(GlobalConstants.ERP_API_BASE_URL);
         const response = await axios.get(
           `${GlobalConstants.ERP_API_BASE_URL}/recent-documents`,
           {
