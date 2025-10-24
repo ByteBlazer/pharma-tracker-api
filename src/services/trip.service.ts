@@ -18,6 +18,11 @@ import { DocStatus } from "../enums/doc-status.enum";
 import { TripStatus } from "../enums/trip-status.enum";
 import { UserRole } from "../enums/user-role.enum";
 import { GlobalConstants } from "../GlobalConstants";
+import {
+  getErpBaseUrl,
+  getErpApiHeaders,
+  getErpApiStatusUpdateHookUrl,
+} from "../utils/erp-api.utils";
 import { AvailableDriver } from "../interfaces/available-driver.interface";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { SettingsCacheService } from "./settings-cache.service";
@@ -124,13 +129,13 @@ export class TripService {
           documentsToLoad.map((doc) =>
             axios
               .post(
-                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
                   status: DocStatus.TRIP_SCHEDULED,
                   userId: loggedInUser.id,
                 },
-                { headers: GlobalConstants.ERP_API_HEADERS }
+                { headers: getErpApiHeaders() }
               )
               .catch((e) => {
                 console.error(
@@ -405,13 +410,13 @@ export class TripService {
           associatedDocs.map((doc) =>
             axios
               .post(
-                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
                   status: DocStatus.READY_FOR_DISPATCH,
                   userId: loggedInUser.id,
                 },
-                { headers: GlobalConstants.ERP_API_HEADERS }
+                { headers: getErpApiHeaders() }
               )
               .catch((e) => {
                 console.error(
@@ -526,13 +531,13 @@ export class TripService {
           associatedDocs.map((doc) =>
             axios
               .post(
-                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
                   status: DocStatus.ON_TRIP,
                   userId: loggedInUser.id,
                 },
-                { headers: GlobalConstants.ERP_API_HEADERS }
+                { headers: getErpApiHeaders() }
               )
               .catch((e) => {
                 console.error(
@@ -1058,13 +1063,13 @@ export class TripService {
           docsToMarkUndelivered.map((doc) =>
             axios
               .post(
-                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
                   status: DocStatus.UNDELIVERED,
                   userId: loggedInUser.id,
                 },
-                { headers: GlobalConstants.ERP_API_HEADERS }
+                { headers: getErpApiHeaders() }
               )
               .catch((e) => {
                 console.error(
@@ -1187,13 +1192,13 @@ export class TripService {
           docsToUpdate.map((doc) =>
             axios
               .post(
-                `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+                `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
                   status: DocStatus.AT_TRANSIT_HUB,
                   userId: loggedInUser.id,
                 },
-                { headers: GlobalConstants.ERP_API_HEADERS }
+                { headers: getErpApiHeaders() }
               )
               .catch((e) => {
                 // Optionally log error here; errors won't block main flow

@@ -15,16 +15,6 @@ export class GlobalConstants {
   static readonly GOOGLE_MAPS_API_KEY =
     "AIzaSyB-M95qSZan9nDkd1kcg7HYhTjG8gwd2FE";
 
-  // ERP API Configuration - using environment variables
-  static readonly ERP_API_BASE_URL = process.env.ERP_API_BASE_URL;
-  static readonly ERP_API_HEADERS = {
-    "x-api-prod-code": process.env.ERP_API_PROD_CODE,
-    "x-api-token": process.env.ERP_API_TOKEN,
-  };
-
-  static readonly ERP_API_STATUS_UPDATE_HOOK_URL =
-    this.ERP_API_BASE_URL + "/document/status";
-
   static readonly FALLBACK_LOCATION_HEARTBEAT_FREQUENCY_IN_SECONDS = 60;
   static readonly FALLBACK_SCAN_ROUTE_TIMEOUT_SECONDS = 10;
 

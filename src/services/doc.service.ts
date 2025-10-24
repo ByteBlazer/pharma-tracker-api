@@ -20,6 +20,11 @@ import {
 import axios from "axios";
 
 import { GlobalConstants } from "src/GlobalConstants";
+import {
+  getErpBaseUrl,
+  getErpApiHeaders,
+  getErpApiStatusUpdateHookUrl,
+} from "../utils/erp-api.utils";
 import { DispatchQueue } from "src/interfaces/dispatch-queue.interface";
 import { JwtPayload } from "src/interfaces/jwt-payload.interface";
 import { RouteSummary } from "src/interfaces/route-summary.interface";
@@ -74,17 +79,14 @@ export class DocService {
 
     // Fetch document details from ERP
     try {
-      const response = await axios.get(
-        `${GlobalConstants.ERP_API_BASE_URL}/document`,
-        {
-          params: {
-            doc_id: docId,
-            user: loggedInUser.username,
-          },
-          headers: GlobalConstants.ERP_API_HEADERS,
-          timeout: 3000, // 3 second timeout
-        }
-      );
+      const response = await axios.get(`${getErpBaseUrl()}/document`, {
+        params: {
+          doc_id: docId,
+          user: loggedInUser.username,
+        },
+        headers: getErpApiHeaders(),
+        timeout: 3000, // 3 second timeout
+      });
 
       if (response.data) {
         docFromErp = {
@@ -158,13 +160,13 @@ export class DocService {
         if (this.settingsCacheService.getUpdateDocStatusToErp()) {
           void axios
             .post(
-              `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+              `${getErpApiStatusUpdateHookUrl()}`,
               {
                 docId: docId,
                 status: DocStatus.READY_FOR_DISPATCH,
                 userId: loggedInUser.id,
               },
-              { headers: GlobalConstants.ERP_API_HEADERS }
+              { headers: getErpApiHeaders() }
             )
             .catch((e) => {
               console.error(
@@ -354,13 +356,13 @@ export class DocService {
     if (this.settingsCacheService.getUpdateDocStatusToErp()) {
       void axios
         .post(
-          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          `${getErpApiStatusUpdateHookUrl()}`,
           {
             docId: docId,
             status: DocStatus.READY_FOR_DISPATCH,
             userId: loggedInUser.id,
           },
-          { headers: GlobalConstants.ERP_API_HEADERS }
+          { headers: getErpApiHeaders() }
         )
         .catch((e) => {
           console.error(
@@ -589,11 +591,11 @@ export class DocService {
 
     if (!mockOfMocks) {
       try {
-        console.log(GlobalConstants.ERP_API_BASE_URL);
+        console.log(getErpBaseUrl());
         const response = await axios.get(
-          `${GlobalConstants.ERP_API_BASE_URL}/recent-documents`,
+          `${getErpBaseUrl()}/recent-documents`,
           {
-            headers: GlobalConstants.ERP_API_HEADERS,
+            headers: getErpApiHeaders(),
           }
         );
 
@@ -783,13 +785,13 @@ export class DocService {
               //Call the ERP API to get the document details
               try {
                 const response = await axios.get(
-                  `${GlobalConstants.ERP_API_BASE_URL}/document`,
+                  `${getErpBaseUrl()}/document`,
                   {
                     params: {
                       doc_id: docData.docId,
                       user: "mock-admin",
                     },
-                    headers: GlobalConstants.ERP_API_HEADERS,
+                    headers: getErpApiHeaders(),
                   }
                 );
 
@@ -926,13 +928,13 @@ export class DocService {
       console.log("Updating doc status to ERP API");
       void axios
         .post(
-          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          `${getErpApiStatusUpdateHookUrl()}`,
           {
             docId: docId,
             status: DocStatus.DELIVERED,
             userId: loggedInUser.id,
           },
-          { headers: GlobalConstants.ERP_API_HEADERS }
+          { headers: getErpApiHeaders() }
         )
         .catch((e) => {
           console.error(
@@ -977,13 +979,13 @@ export class DocService {
     if (this.settingsCacheService.getUpdateDocStatusToErp()) {
       void axios
         .post(
-          `${GlobalConstants.ERP_API_STATUS_UPDATE_HOOK_URL}`,
+          `${getErpApiStatusUpdateHookUrl()}`,
           {
             docId: docId,
             status: DocStatus.UNDELIVERED,
             userId: loggedInUser.id,
           },
-          { headers: GlobalConstants.ERP_API_HEADERS }
+          { headers: getErpApiHeaders() }
         )
         .catch((e) => {
           console.error(
