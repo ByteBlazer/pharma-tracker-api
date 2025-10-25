@@ -1432,4 +1432,23 @@ export class TripService {
       },
     });
   }
+
+  async getTripsByDateRange(startDate: Date, endDate: Date): Promise<Trip[]> {
+    return await this.tripRepository.find({
+      where: {
+        createdAt: MoreThanOrEqual(startDate),
+      },
+      relations: {
+        creator: {
+          baseLocation: true,
+        },
+        driver: {
+          baseLocation: true,
+        },
+      },
+      order: {
+        createdAt: "DESC",
+      },
+    });
+  }
 }

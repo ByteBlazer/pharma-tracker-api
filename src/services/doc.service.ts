@@ -64,6 +64,65 @@ export class DocService {
     private dataSource: DataSource
   ) {}
 
+  async getDocumentStatus(docId: string): Promise<DocStatus> {
+    const doc = await this.docRepository.findOne({
+      where: { id: docId },
+    });
+
+    if (!doc) {
+      return undefined;
+    }
+
+    return doc.status as DocStatus;
+  }
+
+  async getDocumentsByTripId(tripId: number): Promise<Doc[]> {
+    return await this.docRepository.find({
+      where: { tripId: tripId },
+    });
+  }
+
+  async getDeliveryInfo(docId: string): Promise<{
+    latitude?: string;
+    longitude?: string;
+    deliveredAt?: string;
+    comment: string;
+  } | null> {
+    // Get document with customer information
+    const doc = await this.docRepository.findOne({
+      where: { id: docId },
+      relations: {
+        customer: true,
+      },
+    });
+
+    if (!doc) {
+      return null;
+    }
+
+    if (doc.status === DocStatus.UNDELIVERED) {
+      return {
+        comment: doc.comment || "",
+      };
+    }
+
+    // Get signature for delivery timestamp for DELIVERED documents
+    const signature = await this.signatureRepository.findOne({
+      where: { docId: docId },
+    });
+
+    if (!signature) {
+      return null;
+    }
+
+    return {
+      latitude: doc.customer.geoLatitude || "",
+      longitude: doc.customer.geoLongitude || "",
+      deliveredAt: signature.lastUpdatedAt.toISOString(),
+      comment: doc.comment || "",
+    };
+  }
+
   async scanAndAdd(
     docId: string,
     loggedInUser: JwtPayload
