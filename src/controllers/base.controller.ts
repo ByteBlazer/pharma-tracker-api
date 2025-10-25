@@ -11,10 +11,15 @@ import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { SkipAuth } from "src/decorators/skip-auth.decorator";
 import { DocStatus } from "src/enums/doc-status.enum";
 import { DocService } from "../services/doc.service";
+import { TripService } from "../services/trip.service";
+import { TripStatus } from "src/enums/trip-status.enum";
 
 @Controller("")
 export class BaseController {
-  constructor(private readonly docService: DocService) {}
+  constructor(
+    private readonly docService: DocService,
+    private readonly tripService: TripService
+  ) {}
 
   /**
   This endpoint is used by the ERP system to hit us and get a tracking URL for a document.
@@ -64,6 +69,114 @@ export class BaseController {
       status: docStatus,
       trackingURL: trackingURL,
       docId: docId,
+    };
+  }
+
+  /**
+   * Get all trip information for the specified number of days
+   */
+  @Get("trips")
+  @SkipAuth()
+  async getAllTrips(
+    @LoggedInUser() loggedInUser: JwtPayload,
+    @Req() req: Request,
+    @Query("days") days?: string
+  ): Promise<{
+    trips: Array<{
+      tripId: string;
+      tripStartTime: string;
+      tripEndTime?: string;
+      docList: Array<{
+        docId: string;
+        status: string;
+        actualDeliveryLocationLat?: string;
+        actualDeliveryLocationLng?: string;
+        deliveryTime?: string;
+        comment?: string;
+        trackingURL?: string;
+      }>;
+    }>;
+  }> {
+    // Parse days parameter with validation
+    let daysToFetch = 2; // Default value
+    if (days) {
+      const parsedDays = parseInt(days);
+      if (!isNaN(parsedDays)) {
+        daysToFetch = Math.min(Math.max(parsedDays, 1), 10); // Clamp between 1 and 10
+      }
+    }
+
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - daysToFetch);
+
+    // Get trips from trip service
+    const trips = await this.tripService.getTripsByDateRange(
+      startDate,
+      endDate
+    );
+
+    // Transform trips to the required format
+    const transformedTrips = await Promise.all(
+      trips.map(async (trip) => {
+        // Get documents for this trip
+        const docs = await this.docService.getDocumentsByTripId(trip.id);
+
+        // Transform documents to the required format
+        const docList = await Promise.all(
+          docs.map(async (doc) => {
+            const docInfo: any = {
+              docId: doc.id,
+              status: doc.status,
+            };
+
+            // Add delivery location and time for DELIVERED documents
+            if (doc.status === DocStatus.DELIVERED) {
+              // Get delivery information from signature table
+              const deliveryInfo = await this.docService.getDeliveryInfo(
+                doc.id
+              );
+              if (deliveryInfo) {
+                docInfo.actualDeliveryLocationLat = deliveryInfo.latitude;
+                docInfo.actualDeliveryLocationLng = deliveryInfo.longitude;
+                docInfo.deliveryTime = deliveryInfo.deliveredAt;
+                docInfo.comment = deliveryInfo.comment;
+              }
+            }
+
+            try {
+              const trackingInfo = await this.getTrackingLink(
+                doc.id,
+                loggedInUser,
+                req
+              );
+              const trackingURL = trackingInfo.trackingURL;
+              docInfo.trackingURL = trackingURL || undefined;
+            } catch (error) {
+              docInfo.trackingURL = undefined;
+            }
+
+            return docInfo;
+          })
+        );
+
+        return {
+          tripId: trip.id.toString(),
+          tripStartTime:
+            trip.startedAt?.toISOString() || trip.createdAt.toISOString(),
+          tripEndTime:
+            trip.status === TripStatus.ENDED ||
+            trip.status === TripStatus.CANCELLED
+              ? trip.lastUpdatedAt.toISOString()
+              : undefined,
+          docList: docList,
+        };
+      })
+    );
+
+    return {
+      trips: transformedTrips,
     };
   }
 }
