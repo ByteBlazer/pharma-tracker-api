@@ -11,6 +11,9 @@ import { SkipAuth } from "src/decorators/skip-auth.decorator";
 
 @Controller("")
 export class BaseController {
+  /**
+  This endpoint is used by the ERP system to hit us and get a tracking URL for a document.
+  */
   @Get("trackingLink")
   @SkipAuth()
   async getTrackingLink(
