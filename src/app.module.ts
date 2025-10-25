@@ -5,6 +5,7 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { AuthController } from "./controllers/auth.controller";
+import { BaseController } from "./controllers/base.controller";
 import { DocController } from "./controllers/doc.controller";
 import { GreetingController } from "./controllers/greeting.controller";
 import { LocationController } from "./controllers/location.controller";
@@ -95,6 +96,7 @@ import { TripService } from "./services/trip.service";
   ],
   controllers: [
     AuthController,
+    BaseController,
     DocController,
     LocationController,
     GreetingController,
