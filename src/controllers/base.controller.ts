@@ -4,13 +4,18 @@ import {
   Query,
   BadRequestException,
   Req,
+  NotFoundException,
 } from "@nestjs/common";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { SkipAuth } from "src/decorators/skip-auth.decorator";
+import { DocStatus } from "src/enums/doc-status.enum";
+import { DocService } from "../services/doc.service";
 
 @Controller("")
 export class BaseController {
+  constructor(private readonly docService: DocService) {}
+
   /**
   This endpoint is used by the ERP system to hit us and get a tracking URL for a document.
   */
@@ -20,9 +25,17 @@ export class BaseController {
     @Query("docId") docId: string,
     @LoggedInUser() loggedInUser: JwtPayload,
     @Req() req: Request
-  ): Promise<{ success: boolean; trackingUrl: string; message: string }> {
+  ): Promise<{ status: DocStatus; trackingURL: string; docId: string }> {
     if (!docId) {
       throw new BadRequestException("docId query parameter is required");
+    }
+
+    // Fetch document status from database
+    const docStatus = await this.docService.getDocumentStatus(docId);
+    if (!docStatus) {
+      throw new BadRequestException(
+        "The provided docId is not among scanned documents in Pharma Tracker."
+      );
     }
 
     // Generate tracking URL with base64 encoded docId
@@ -37,12 +50,20 @@ export class BaseController {
         ? host
         : `https://${host}`
       : "";
-    const trackingUrl = `${baseUrl}/track?t=${trackingToken}`;
+    let trackingURL = `${baseUrl}/track?t=${trackingToken}`;
+    if (
+      docStatus === DocStatus.READY_FOR_DISPATCH ||
+      docStatus === DocStatus.TRIP_SCHEDULED
+    ) {
+      throw new BadRequestException(
+        "The provided docId was scanned in Pharma Tracker, but not on a trip yet."
+      );
+    }
 
     return {
-      success: true,
-      trackingUrl: trackingUrl,
-      message: `Tracking URL generated for document ${docId}`,
+      status: docStatus,
+      trackingURL: trackingURL,
+      docId: docId,
     };
   }
 }

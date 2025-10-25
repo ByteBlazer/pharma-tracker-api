@@ -64,6 +64,18 @@ export class DocService {
     private dataSource: DataSource
   ) {}
 
+  async getDocumentStatus(docId: string): Promise<DocStatus> {
+    const doc = await this.docRepository.findOne({
+      where: { id: docId },
+    });
+
+    if (!doc) {
+      return undefined;
+    }
+
+    return doc.status as DocStatus;
+  }
+
   async scanAndAdd(
     docId: string,
     loggedInUser: JwtPayload
