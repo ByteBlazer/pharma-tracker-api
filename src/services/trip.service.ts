@@ -480,9 +480,7 @@ export class TripService {
 
     if (existingStartedTrip) {
       throw new BadRequestException(
-        `Cannot start trip ${tripId}.
-        You already have another trip (ID: ${existingStartedTrip.id}) in STARTED status for which you are the driver.
-        Please end the current trip before starting a new one.`
+        `Cannot start trip #${tripId}. Another trip (#${existingStartedTrip.id}) is already ongoing for you. Please end that trip first.`
       );
     }
 
@@ -493,7 +491,7 @@ export class TripService {
 
     if (associatedDocs.length === 0) {
       throw new BadRequestException(
-        `Trip ${tripId} has no associated documents. A trip must have at least one document to be started.`
+        `Trip #${tripId} has no associated documents. A trip must have at least one document to be started.`
       );
     }
 

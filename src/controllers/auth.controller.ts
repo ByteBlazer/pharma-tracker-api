@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { SkipAuth } from "../decorators/skip-auth.decorator";
@@ -31,8 +32,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @SkipAuth()
   @Throttle({ default: { limit: 30, ttl: 1 * 60 * 1000 } })
-  async generateOtp(@Body() authRequestDto: AuthRequestDto) {
-    return this.authService.generateOtp(authRequestDto);
+  async generateOtp(
+    @Body() authRequestDto: AuthRequestDto,
+    @Query("appCode") appCode?: string
+  ) {
+    // You can pass appCode to service if needed, e.g. this.authService.generateOtp(authRequestDto, appCode)
+    return this.authService.generateOtp(authRequestDto, appCode);
   }
 
   @Post("validate-otp")
