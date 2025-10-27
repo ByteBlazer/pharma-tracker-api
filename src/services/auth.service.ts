@@ -41,7 +41,7 @@ export class AuthService {
     private readonly settingsCacheService: SettingsCacheService
   ) {}
 
-  async generateOtp(authRequestDto: AuthRequestDto) {
+  async generateOtp(authRequestDto: AuthRequestDto, appCode?: string) {
     // Validate user exists and is active
     await this.checkUser(authRequestDto.mobile);
 
@@ -62,12 +62,14 @@ export class AuthService {
       return;
     }
 
-    const generateOtpUrl = GlobalConstants.SMS_GENERATE_OTP_TEMPLATE.replace(
-      "{apikey}",
-      GlobalConstants.SMS_API_KEY
-    )
-      .replace("{mobilePhone}", authRequestDto.mobile)
-      .replace("{otpTemplateName}", GlobalConstants.SMS_OTP_TEMPLATE);
+    const generateOtpUrl =
+      GlobalConstants.SMS_GENERATE_OTP_TEMPLATE.replace(
+        "{apikey}",
+        GlobalConstants.SMS_API_KEY
+      )
+        .replace("{mobilePhone}", authRequestDto.mobile)
+        .replace("{otpTemplateName}", GlobalConstants.SMS_OTP_TEMPLATE) +
+      (appCode ? `?VAR_1=${appCode}` : "");
 
     let generateOtpResponse;
 

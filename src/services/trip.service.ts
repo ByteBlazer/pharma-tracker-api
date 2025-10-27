@@ -480,9 +480,7 @@ export class TripService {
 
     if (existingStartedTrip) {
       throw new BadRequestException(
-        `Cannot start trip ${tripId}.
-        You already have another trip (ID: ${existingStartedTrip.id}) in STARTED status for which you are the driver.
-        Please end the current trip before starting a new one.`
+        `Cannot start trip #${tripId}. Another trip (#${existingStartedTrip.id}) is already ongoing for you. Please end that trip first.`
       );
     }
 
@@ -493,7 +491,7 @@ export class TripService {
 
     if (associatedDocs.length === 0) {
       throw new BadRequestException(
-        `Trip ${tripId} has no associated documents. A trip must have at least one document to be started.`
+        `Trip #${tripId} has no associated documents. A trip must have at least one document to be started.`
       );
     }
 
@@ -920,24 +918,33 @@ export class TripService {
       );
     }
 
-    // Check all documents in the trip to ensure they are either delivered or undelivered
-    // Exclude documents from lots that have been dropped off (AT_TRANSIT_HUB status)
+    // Check all direct delivery documents in the trip to ensure they are either delivered or undelivered
+    // Only consider direct deliveries (lot === null), exclude lot-based documents
     const pendingDocs = await this.docRepository.find({
       where: {
         tripId: tripId,
-        status: Not(
-          In([
-            DocStatus.DELIVERED,
-            DocStatus.UNDELIVERED,
-            DocStatus.AT_TRANSIT_HUB,
-          ])
-        ),
+        lot: null, // Only direct deliveries
+        status: Not(In([DocStatus.DELIVERED, DocStatus.UNDELIVERED])),
       },
     });
 
     if (pendingDocs.length > 0) {
       throw new BadRequestException(
-        `Cannot end trip. ${pendingDocs.length} document(s) are still pending delivery marking. Please mark all documents as delivered or failed delivery before ending the trip.`
+        `Cannot end trip. ${pendingDocs.length} deliveries still pending. Please mark all direct delivery documents as delivered or failed delivery before ending the trip.`
+      );
+    }
+
+    // Check if any lot-based documents still need to be dropped off
+    const pendingLotDocs = await this.docRepository.find({
+      where: {
+        tripId: tripId,
+        lot: Not(null), // Only lot-based documents
+      },
+    });
+
+    if (pendingLotDocs.length > 0) {
+      throw new BadRequestException(
+        `Cannot end trip. Some lots still need to be dropped off.`
       );
     }
 
@@ -1382,13 +1389,21 @@ export class TripService {
 
     let deliveryCountStatusMsg = "";
     let dropoffCountStatusMsg = "";
-    if (trip.status === TripStatus.SCHEDULED) {
-      deliveryCountStatusMsg = `Direct Deliveries: ${totalDirectDeliveries}`;
-      dropoffCountStatusMsg = `Lots To Be Dropped Off: ${pendingLotDropOffs}`;
-    } else {
-      deliveryCountStatusMsg = `Deliveries: ${pendingDirectDeliveries} pending out of ${totalDirectDeliveries}`;
-      dropoffCountStatusMsg = `Pending Drop Off Lots: ${pendingLotDropOffs}`;
-    }
+    const getDirectDeliveryStatusMsg = () => {
+      if (totalDirectDeliveries === 0) return "No Direct Deliveries";
+      if (trip.status === TripStatus.SCHEDULED)
+        return `Direct Deliveries: ${totalDirectDeliveries}`;
+      if (pendingDirectDeliveries === 0) return "No Pending Deliveries";
+      return `Deliveries: ${pendingDirectDeliveries} pending out of ${totalDirectDeliveries}`;
+    };
+
+    const getLotDropOffStatusMsg = () => {
+      if (pendingLotDropOffs === 0) return "No Lots To Be Dropped Off";
+      return `Lots To Be Dropped Off: ${pendingLotDropOffs}`;
+    };
+
+    deliveryCountStatusMsg = getDirectDeliveryStatusMsg();
+    dropoffCountStatusMsg = getLotDropOffStatusMsg();
 
     return {
       tripId: trip.id,
