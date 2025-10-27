@@ -69,7 +69,7 @@ export class AuthService {
       )
         .replace("{mobilePhone}", authRequestDto.mobile)
         .replace("{otpTemplateName}", GlobalConstants.SMS_OTP_TEMPLATE) +
-      (appCode ? `?VAR=${appCode}` : "");
+      (appCode ? `?var1=${appCode}` : "");
 
     let generateOtpResponse;
 
