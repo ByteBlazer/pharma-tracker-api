@@ -5,7 +5,7 @@ export class GlobalConstants {
     "https://2factor.in/API/V1/{apikey}/SMS/VERIFY3/{mobilePhone}/{otp}";
   static readonly SEND_SMS_URL_TEMPLATE =
     "https://2factor.in/API/R1/?module=TRANS_SMS&apikey={apikey}&to={recipientMobileNumber}&from=BTBLZR&templatename={smsTemplateName}";
-  static readonly SMS_OTP_TEMPLATE = "PHARMA_OTP_V9";
+  static readonly SMS_OTP_TEMPLATE = "PHARMA_OTP_V10";
 
   static readonly SMS_API_KEY = "397be28f-2352-11ec-a13b-0200cd936042";
 
