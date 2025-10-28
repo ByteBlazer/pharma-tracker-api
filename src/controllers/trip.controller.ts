@@ -8,6 +8,7 @@ import {
   ValidationPipe,
   BadRequestException,
   Req,
+  Query,
 } from "@nestjs/common";
 import { TripService } from "../services/trip.service";
 import { CreateTripDto } from "../dto/create-trip.dto";
@@ -18,6 +19,8 @@ import { RequireRoles } from "../decorators/require-roles.decorator";
 import { LoggedInUser } from "../decorators/logged-in-user.decorator";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { UserRole } from "../enums/user-role.enum";
+import { DocStatus } from "src/enums/doc-status.enum";
+import { TripStatus } from "src/enums/trip-status.enum";
 
 @Controller("trip")
 @UseGuards(JwtAuthGuard)
@@ -172,5 +175,19 @@ export class TripController {
       throw new BadRequestException("Invalid trip ID. Must be a number.");
     }
     return await this.tripService.getTripDetails(tripIdNumber);
+  }
+
+  @Get("doc-search/:docId")
+  async getDocTripInfo(@Param("docId") docId: string): Promise<{
+    docId: string;
+    docStatus: DocStatus;
+    tripId?: number;
+    tripStatus?: TripStatus;
+  }> {
+    if (!docId || docId.trim() === "") {
+      throw new BadRequestException("Document ID is required.");
+    }
+
+    return await this.tripService.getDocTripInfo(docId.trim());
   }
 }
