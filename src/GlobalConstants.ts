@@ -9,7 +9,7 @@ export class GlobalConstants {
 
   static readonly SMS_API_KEY = "397be28f-2352-11ec-a13b-0200cd936042";
 
-  // Tracking SMS Control - Set to true to enable tracking SMS sending in local Windows environment
+  // Tracking SMS Control - Set to true to enable tracking SMS sending in the local Windows environment
   static readonly ENABLE_TRACKING_SMS_IN_LOCAL = true;
 
   static readonly GOOGLE_MAPS_API_KEY =
