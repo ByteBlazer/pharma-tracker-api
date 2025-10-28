@@ -1,7 +1,14 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import axios from "axios";
-import { DataSource, In, MoreThanOrEqual, Not, Repository } from "typeorm";
+import {
+  DataSource,
+  In,
+  IsNull,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from "typeorm";
 import { CreateTripDto } from "../dto/create-trip.dto";
 import { DocGroupOutputDto } from "../dto/doc-group-output.dto";
 import { DocOutputDto } from "../dto/doc-output.dto";
@@ -923,7 +930,7 @@ export class TripService {
     const pendingDocs = await this.docRepository.find({
       where: {
         tripId: tripId,
-        lot: null, // Only direct deliveries
+        lot: IsNull(), // lot is null or an empty string
         status: Not(In([DocStatus.DELIVERED, DocStatus.UNDELIVERED])),
       },
     });
@@ -938,7 +945,7 @@ export class TripService {
     const pendingLotDocs = await this.docRepository.find({
       where: {
         tripId: tripId,
-        lot: Not(null), // Only lot-based documents
+        lot: Not(IsNull()),
       },
     });
 
