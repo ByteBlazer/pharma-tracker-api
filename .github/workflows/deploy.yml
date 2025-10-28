@@ -32,7 +32,15 @@ jobs:
       - name: Add EC2 host to known hosts
         run: |
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        run: |
+          echo "Testing SSH connection to EC2..."
+          ssh -o ConnectTimeout=10 -o BatchMode=yes ubuntu@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
+          echo "✅ SSH connection verified"
 
       - name: Deploy to EC2
         run: |
