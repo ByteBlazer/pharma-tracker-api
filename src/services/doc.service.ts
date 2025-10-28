@@ -144,7 +144,7 @@ export class DocService {
           user: loggedInUser.username,
         },
         headers: getErpApiHeaders(),
-        timeout: 3000, // 3 second timeout
+        timeout: 5000, // 5 second timeout
       });
 
       if (response.data) {

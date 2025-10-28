@@ -1418,6 +1418,7 @@ export class TripService {
       createdById: trip.createdBy,
       driverName: trip.driver.personName,
       driverId: trip.drivenBy,
+      driverPhoneNumber: trip.driver.mobile || "",
       vehicleNumber: trip.vehicleNbr,
       status: trip.status,
       route: trip.route,
@@ -1472,5 +1473,49 @@ export class TripService {
         createdAt: "DESC",
       },
     });
+  }
+
+  async getDocTripInfo(docId: string): Promise<{
+    docId: string;
+    docStatus: DocStatus;
+    tripId?: number;
+    tripStatus?: TripStatus;
+  }> {
+    // Find the document
+    const doc = await this.docRepository.findOne({
+      where: { id: docId },
+    });
+
+    if (!doc) {
+      throw new BadRequestException(`Document with ID '${docId}' not found.`);
+    }
+
+    // If document is not part of any trip
+    if (!doc.tripId) {
+      return {
+        docId: doc.id,
+        docStatus: doc.status as DocStatus,
+      };
+    }
+
+    // Find the trip information
+    const trip = await this.tripRepository.findOne({
+      where: { id: doc.tripId },
+    });
+
+    if (!trip) {
+      // Document has tripId but trip doesn't exist (data inconsistency)
+      return {
+        docId: doc.id,
+        docStatus: doc.status as DocStatus,
+      };
+    }
+
+    return {
+      docId: doc.id,
+      docStatus: doc.status as DocStatus,
+      tripId: trip.id,
+      tripStatus: trip.status,
+    };
   }
 }

@@ -4,6 +4,7 @@ export class TripOutputDto {
   createdById: string;
   driverName: string;
   driverId: string;
+  driverPhoneNumber: string;
   vehicleNumber: string;
   status: string;
   route: string;
