@@ -5,6 +5,7 @@ import {
   DataSource,
   In,
   IsNull,
+  Like,
   MoreThanOrEqual,
   Not,
   Repository,
@@ -1482,9 +1483,22 @@ export class TripService {
     tripStatus?: TripStatus;
   }> {
     // Find the document
-    const doc = await this.docRepository.findOne({
-      where: { id: docId },
+    // Do a contains search for docId substring
+    const docs = await this.docRepository.find({
+      where: { id: In([docId]) }, // fallback if needed
     });
+
+    // Use contains search instead of exact match
+    // Use find with LIKE (TypeORM)
+    const foundDocs = await this.docRepository.find({
+      where: { id: Like(`%${docId}%`) },
+    });
+
+    let doc = null;
+    if (foundDocs.length === 1) {
+      doc = foundDocs[0];
+    }
+    // If 0 or multiple results, consider it as no match (leave doc as null)
 
     if (!doc) {
       throw new BadRequestException(`Document with ID '${docId}' not found.`);
