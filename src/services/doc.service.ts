@@ -1102,8 +1102,18 @@ export class DocService {
     const response: DocTrackingResponseDto = {
       success: true,
       message: "Document tracking information retrieved successfully",
+      docId: docId,
+      docAmount: doc.docAmount as unknown as number,
       status: doc.status,
     };
+
+    // Populate customer info if available
+    if (doc.customer) {
+      response.customerFirmName = doc.customer.firmName || "";
+      response.customerAddress = doc.customer.address || "";
+      response.customerCity = doc.customer.city || "";
+      response.customerPincode = doc.customer.pincode || "";
+    }
 
     // Handle different statuses
     switch (doc.status) {
