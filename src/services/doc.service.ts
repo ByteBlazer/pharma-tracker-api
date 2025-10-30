@@ -1057,7 +1057,7 @@ export class DocService {
 
     return {
       success: true,
-      message: "Document marked as delivery failed successfully",
+      message: "Document marked as: Delivery Failed",
       docId: docId,
       statusCode: 200,
     };
