@@ -938,7 +938,11 @@ export class TripService {
 
     if (pendingDocs.length > 0) {
       throw new BadRequestException(
-        `Cannot end trip. ${pendingDocs.length} deliveries still pending. Please mark all direct delivery documents as delivered or failed delivery before ending the trip.`
+        `Cannot end trip. ${pendingDocs.length} deliver${
+          pendingDocs.length === 1 ? "y is" : "ies are"
+        } still pending. Please mark all direct delivery document${
+          pendingDocs.length === 1 ? "" : "s"
+        } as delivered or failed delivery before ending the trip.`
       );
     }
 
