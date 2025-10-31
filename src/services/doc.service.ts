@@ -903,7 +903,8 @@ export class DocService {
   async markDelivery(
     docId: string,
     markDeliveryDto: MarkDeliveryDto,
-    loggedInUser: JwtPayload
+    loggedInUser: JwtPayload,
+    shouldUpdateCustomerLocation: boolean
   ): Promise<{
     success: boolean;
     message: string;
@@ -965,6 +966,7 @@ export class DocService {
 
       // Update customer coordinates if provided
       if (
+        shouldUpdateCustomerLocation &&
         markDeliveryDto.deliveryLatitude &&
         markDeliveryDto.deliveryLongitude
       ) {
