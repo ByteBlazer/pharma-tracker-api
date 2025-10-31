@@ -903,7 +903,8 @@ export class DocService {
   async markDelivery(
     docId: string,
     markDeliveryDto: MarkDeliveryDto,
-    loggedInUser: JwtPayload
+    loggedInUser: JwtPayload,
+    shouldUpdateCustomerLocation: boolean
   ): Promise<{
     success: boolean;
     message: string;
@@ -965,6 +966,7 @@ export class DocService {
 
       // Update customer coordinates if provided
       if (
+        shouldUpdateCustomerLocation &&
         markDeliveryDto.deliveryLatitude &&
         markDeliveryDto.deliveryLongitude
       ) {
@@ -1057,7 +1059,7 @@ export class DocService {
 
     return {
       success: true,
-      message: "Document marked as delivery failed successfully",
+      message: "Document marked as: Delivery Failed",
       docId: docId,
       statusCode: 200,
     };
@@ -1102,8 +1104,18 @@ export class DocService {
     const response: DocTrackingResponseDto = {
       success: true,
       message: "Document tracking information retrieved successfully",
+      docId: docId,
+      docAmount: doc.docAmount as unknown as number,
       status: doc.status,
     };
+
+    // Populate customer info if available
+    if (doc.customer) {
+      response.customerFirmName = doc.customer.firmName || "";
+      response.customerAddress = doc.customer.address || "";
+      response.customerCity = doc.customer.city || "";
+      response.customerPincode = doc.customer.pincode || "";
+    }
 
     // Handle different statuses
     switch (doc.status) {
