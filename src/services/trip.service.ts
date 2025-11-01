@@ -951,6 +951,7 @@ export class TripService {
       where: {
         tripId: tripId,
         lot: Not(IsNull()),
+        status: Not(In([DocStatus.DELIVERED, DocStatus.UNDELIVERED])),
       },
     });
 
