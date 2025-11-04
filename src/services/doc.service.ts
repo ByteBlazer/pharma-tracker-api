@@ -144,7 +144,7 @@ export class DocService {
           user: loggedInUser.username,
         },
         headers: getErpApiHeaders(),
-        timeout: 3000, // 3 second timeout
+        timeout: 5000, // 5 second timeout
       });
 
       if (response.data) {
@@ -167,12 +167,35 @@ export class DocService {
         };
         erpMatchFound = true;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching document from ERP API");
+
+      if (
+        error.code === "ECONNABORTED" || // Axios timeout error
+        (error.message && error.message.includes("timeout"))
+      ) {
+        return {
+          success: false,
+          message:
+            "ERP API Server is not responding. Please check with ERP Team.",
+          docId: docId,
+          statusCode: 400,
+        };
+      }
+
+      if (error.response && error.response.status === 400) {
+        return {
+          success: false,
+          message: `Doc ${docId} not found in ERP. Please check with ERP Team.`,
+          docId: docId,
+          statusCode: 400,
+        };
+      }
+
+      // Fallback for other errors
       return {
         success: false,
-        message:
-          "ERP API Server is not responding. Please check with ERP Team.",
+        message: "Unkown error from ERP API. Please check with ERP Team.",
         docId: docId,
         statusCode: 400,
       };
@@ -211,6 +234,7 @@ export class DocService {
       ) {
         existingDoc.lastScannedBy = loggedInUser.id;
         existingDoc.lastUpdatedAt = new Date();
+        existingDoc.comment = null;
         existingDoc.status = DocStatus.READY_FOR_DISPATCH;
 
         await this.docRepository.save(existingDoc);
@@ -902,7 +926,8 @@ export class DocService {
   async markDelivery(
     docId: string,
     markDeliveryDto: MarkDeliveryDto,
-    loggedInUser: JwtPayload
+    loggedInUser: JwtPayload,
+    shouldUpdateCustomerLocation: boolean
   ): Promise<{
     success: boolean;
     message: string;
@@ -964,6 +989,7 @@ export class DocService {
 
       // Update customer coordinates if provided
       if (
+        shouldUpdateCustomerLocation &&
         markDeliveryDto.deliveryLatitude &&
         markDeliveryDto.deliveryLongitude
       ) {
@@ -1056,7 +1082,7 @@ export class DocService {
 
     return {
       success: true,
-      message: "Document marked as delivery failed successfully",
+      message: "Document marked as: Delivery Failed",
       docId: docId,
       statusCode: 200,
     };
@@ -1101,8 +1127,18 @@ export class DocService {
     const response: DocTrackingResponseDto = {
       success: true,
       message: "Document tracking information retrieved successfully",
+      docId: docId,
+      docAmount: doc.docAmount as unknown as number,
       status: doc.status,
     };
+
+    // Populate customer info if available
+    if (doc.customer) {
+      response.customerFirmName = doc.customer.firmName || "";
+      response.customerAddress = doc.customer.address || "";
+      response.customerCity = doc.customer.city || "";
+      response.customerPincode = doc.customer.pincode || "";
+    }
 
     // Handle different statuses
     switch (doc.status) {

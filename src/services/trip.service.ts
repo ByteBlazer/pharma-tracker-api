@@ -1,7 +1,15 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import axios from "axios";
-import { DataSource, In, MoreThanOrEqual, Not, Repository } from "typeorm";
+import {
+  DataSource,
+  In,
+  IsNull,
+  Like,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from "typeorm";
 import { CreateTripDto } from "../dto/create-trip.dto";
 import { DocGroupOutputDto } from "../dto/doc-group-output.dto";
 import { DocOutputDto } from "../dto/doc-output.dto";
@@ -923,14 +931,18 @@ export class TripService {
     const pendingDocs = await this.docRepository.find({
       where: {
         tripId: tripId,
-        lot: null, // Only direct deliveries
+        lot: IsNull(), // lot is null or an empty string
         status: Not(In([DocStatus.DELIVERED, DocStatus.UNDELIVERED])),
       },
     });
 
     if (pendingDocs.length > 0) {
       throw new BadRequestException(
-        `Cannot end trip. ${pendingDocs.length} deliveries still pending. Please mark all direct delivery documents as delivered or failed delivery before ending the trip.`
+        `Cannot end trip. ${pendingDocs.length} deliver${
+          pendingDocs.length === 1 ? "y is" : "ies are"
+        } still pending. Please mark all direct delivery document${
+          pendingDocs.length === 1 ? "" : "s"
+        } as delivered or failed delivery before ending the trip.`
       );
     }
 
@@ -938,7 +950,8 @@ export class TripService {
     const pendingLotDocs = await this.docRepository.find({
       where: {
         tripId: tripId,
-        lot: Not(null), // Only lot-based documents
+        lot: Not(IsNull()),
+        status: Not(In([DocStatus.DELIVERED, DocStatus.UNDELIVERED])),
       },
     });
 
@@ -1411,6 +1424,7 @@ export class TripService {
       createdById: trip.createdBy,
       driverName: trip.driver.personName,
       driverId: trip.drivenBy,
+      driverPhoneNumber: trip.driver.mobile || "",
       vehicleNumber: trip.vehicleNbr,
       status: trip.status,
       route: trip.route,
@@ -1465,5 +1479,62 @@ export class TripService {
         createdAt: "DESC",
       },
     });
+  }
+
+  async getDocTripInfo(docId: string): Promise<{
+    docId: string;
+    docStatus: DocStatus;
+    tripId?: number;
+    tripStatus?: TripStatus;
+  }> {
+    // Find the document
+    // Do a contains search for docId substring
+    const docs = await this.docRepository.find({
+      where: { id: In([docId]) }, // fallback if needed
+    });
+
+    // Use contains search instead of exact match
+    // Use find with LIKE (TypeORM)
+    const foundDocs = await this.docRepository.find({
+      where: { id: Like(`%${docId}%`) },
+    });
+
+    let doc = null;
+    if (foundDocs.length === 1) {
+      doc = foundDocs[0];
+    }
+    // If 0 or multiple results, consider it as no match (leave doc as null)
+
+    if (!doc) {
+      throw new BadRequestException(`Document with ID '${docId}' not found.`);
+    }
+
+    // If document is not part of any trip
+    if (!doc.tripId) {
+      return {
+        docId: doc.id,
+        docStatus: doc.status as DocStatus,
+      };
+    }
+
+    // Find the trip information
+    const trip = await this.tripRepository.findOne({
+      where: { id: doc.tripId },
+    });
+
+    if (!trip) {
+      // Document has tripId but trip doesn't exist (data inconsistency)
+      return {
+        docId: doc.id,
+        docStatus: doc.status as DocStatus,
+      };
+    }
+
+    return {
+      docId: doc.id,
+      docStatus: doc.status as DocStatus,
+      tripId: trip.id,
+      tripStatus: trip.status,
+    };
   }
 }

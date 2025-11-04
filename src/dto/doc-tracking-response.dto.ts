@@ -1,6 +1,12 @@
 export class DocTrackingResponseDto {
   success: boolean;
   message: string;
+  docId?: string;
+  docAmount?: number;
+  customerFirmName?: string;
+  customerAddress?: string;
+  customerCity?: string;
+  customerPincode?: string;
   status?: string;
   comment?: string;
   deliveryTimestamp?: Date;

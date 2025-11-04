@@ -193,13 +193,25 @@ export class DocController {
     @Param("docId") docId: string,
     @Body() markDeliveryDto: MarkDeliveryDto,
     @LoggedInUser() loggedInUser: JwtPayload,
+    @Query("updateCustomerLocation") updateCustomerLocation: string,
     @Res() res: Response
   ): Promise<void> {
+    // Parse the query param to boolean (treat anything 'true' (case-insensitive) as true)
+    let shouldUpdateCustomerLocation: boolean = true;
+
+    if (
+      typeof updateCustomerLocation === "string" &&
+      updateCustomerLocation.toLowerCase() === "false "
+    ) {
+      shouldUpdateCustomerLocation = false;
+    }
+
     try {
       const result = await this.docService.markDelivery(
         docId,
         markDeliveryDto,
-        loggedInUser
+        loggedInUser,
+        shouldUpdateCustomerLocation
       );
 
       res.status(result.statusCode).json({
