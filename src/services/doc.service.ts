@@ -167,12 +167,35 @@ export class DocService {
         };
         erpMatchFound = true;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching document from ERP API");
+
+      if (
+        error.code === "ECONNABORTED" || // Axios timeout error
+        (error.message && error.message.includes("timeout"))
+      ) {
+        return {
+          success: false,
+          message:
+            "ERP API Server is not responding. Please check with ERP Team.",
+          docId: docId,
+          statusCode: 400,
+        };
+      }
+
+      if (error.response && error.response.status === 400) {
+        return {
+          success: false,
+          message: `Doc ${docId} not found in ERP. Please check with ERP Team.`,
+          docId: docId,
+          statusCode: 400,
+        };
+      }
+
+      // Fallback for other errors
       return {
         success: false,
-        message:
-          "ERP API Server is not responding. Please check with ERP Team.",
+        message: "Unkown error from ERP API. Please check with ERP Team.",
         docId: docId,
         statusCode: 400,
       };
