@@ -335,8 +335,13 @@ export class DocController {
       try {
         const decoded = Buffer.from(docId, "base64").toString("utf-8");
         // Only use decoded value if it looks like a valid docId (contains F01-)
-        if (decoded.includes("F01-")) {
+
+        try {
+          await this.docService.getDeliveryStatus(decoded);
+          //If we get here, the input was a token that translates into a docId and we can use it
           actualDocId = decoded;
+        } catch (error) {
+          console.log("Not a base64 encoded docId, using as-is:", docId);
         }
       } catch (decodeError) {
         // If base64 decode fails, use original docId
