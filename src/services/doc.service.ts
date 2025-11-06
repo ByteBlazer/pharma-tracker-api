@@ -186,7 +186,7 @@ export class DocService {
       if (error.response && error.response.status === 400) {
         return {
           success: false,
-          message: `Doc ${docId} not found in ERP. Please check with ERP Team.`,
+          message: `Doc ID ${docId} not found in ERP. Please check with ERP Team.`,
           docId: docId,
           statusCode: 400,
         };
@@ -265,7 +265,9 @@ export class DocService {
           return {
             success: false,
             message:
-              "Doc ID is already delivered and cannot be scanned again for Route " +
+              "Doc ID " +
+              docId +
+              " is already delivered and cannot be scanned again for Route " +
               existingDoc.route,
             docId: docId,
             statusCode: 400, // Bad Request
@@ -275,7 +277,9 @@ export class DocService {
           return {
             success: false,
             message:
-              "Doc ID is already scheduled for a trip for Route " +
+              "Doc ID " +
+              docId +
+              " is already scheduled for a trip for Route " +
               existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
@@ -285,7 +289,10 @@ export class DocService {
           return {
             success: false,
             message:
-              "Doc ID is already out on a trip for Route " + existingDoc.route,
+              "Doc ID " +
+              docId +
+              " is already out on a trip for Route " +
+              existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
           };
@@ -294,7 +301,9 @@ export class DocService {
           return {
             success: true,
             message:
-              "Doc ID re-scanned. Was already in Queue for Route " +
+              "Doc ID " +
+              docId +
+              " re-scanned. Was already in Queue for Route " +
               existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
@@ -304,7 +313,9 @@ export class DocService {
           return {
             success: true,
             message:
-              "Scanned and added to Queue for Route " +
+              "Doc ID " +
+              docId +
+              " scanned and added to Queue for Route " +
               existingDoc.route +
               " (previous delivery attempt failed)",
             docId: docId,
@@ -315,7 +326,9 @@ export class DocService {
           return {
             success: true,
             message:
-              "Scanned from transit hub and added to Queue for Route " +
+              "Doc ID " +
+              docId +
+              " scanned from transit hub and added to Queue for Route " +
               existingDoc.route,
             docId: docId,
             statusCode: 200, // OK
