@@ -33,10 +33,18 @@ export class DocController {
   async scanAndAdd(
     @Param("docId") docId: string,
     @LoggedInUser() loggedInUser: JwtPayload,
-    @Res() res: Response
+    @Res() res: Response,
+    @Query("unscan") unscan?: string
   ): Promise<void> {
     try {
-      const result = await this.docService.scanAndAdd(docId, loggedInUser);
+      // unscan param is optional, default assumed to be false if missing
+      const unscanBool = unscan === "true";
+
+      const result = await this.docService.scanAndAdd(
+        docId,
+        loggedInUser,
+        unscanBool
+      );
 
       res.status(result.statusCode).json({
         success: result.success,
