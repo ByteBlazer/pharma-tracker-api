@@ -3,4 +3,5 @@ export interface ScannedUserSummary {
   scannedByName: string;
   scannedFromLocation: string;
   count: number;
+  docIdList: string[];
 }
