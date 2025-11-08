@@ -125,7 +125,8 @@ export class DocService {
 
   async scanAndAdd(
     docId: string,
-    loggedInUser: JwtPayload
+    loggedInUser: JwtPayload,
+    unscan: boolean
   ): Promise<{
     success: boolean;
     message: string;
@@ -186,7 +187,7 @@ export class DocService {
       if (error.response && error.response.status === 400) {
         return {
           success: false,
-          message: `Doc ${docId} not found in ERP. Please check with ERP Team.`,
+          message: `Doc ID ${docId} not found in ERP. Please check with ERP Team.`,
           docId: docId,
           statusCode: 400,
         };
@@ -198,6 +199,83 @@ export class DocService {
         message: "Unkown error from ERP API. Please check with ERP Team.",
         docId: docId,
         statusCode: 400,
+      };
+    }
+    if (unscan) {
+      // Check if document exists in database
+      const existingDoc = await this.docRepository.findOne({
+        where: { id: docId },
+      });
+      if (
+        !existingDoc ||
+        existingDoc.status == DocStatus.UNDELIVERED ||
+        existingDoc.status == DocStatus.DELIVERED
+      ) {
+        return {
+          success: false,
+          message: "Doc ID " + docId + " not found in queue.",
+          docId: docId,
+          statusCode: 400,
+        };
+      }
+
+      if (existingDoc.status == DocStatus.TRIP_SCHEDULED) {
+        return {
+          success: false,
+          message:
+            "Doc ID " +
+            docId +
+            " is already scheduled for Trip #" +
+            existingDoc.tripId +
+            ". Try cancelling the trip first and then reattempt to remove from queue.",
+          docId: docId,
+          statusCode: 400,
+        };
+      }
+      if (existingDoc.status == DocStatus.ON_TRIP) {
+        return {
+          success: false,
+          message:
+            "Doc ID " +
+            docId +
+            " is already out on Trip #" +
+            existingDoc.tripId +
+            " and cannot be removed from queue.",
+          docId: docId,
+          statusCode: 400,
+        };
+      }
+      if (existingDoc.status == DocStatus.AT_TRANSIT_HUB) {
+        return {
+          success: false,
+          message:
+            "Doc ID " +
+            docId +
+            " is at a transit hub and cannot be removed from queue.",
+          docId: docId,
+          statusCode: 400,
+        };
+      }
+
+      // Remove document from queue
+      await this.docRepository.delete(docId);
+      // Update ERP with PENDING status (non-blocking)
+      if (this.settingsCacheService.getUpdateDocStatusToErp()) {
+        void axios.post(
+          `${getErpApiStatusUpdateHookUrl()}`,
+          {
+            docId: docId,
+            status: DocStatus.PENDING,
+            userId: loggedInUser.id,
+          },
+          { headers: getErpApiHeaders() }
+        );
+      }
+      return {
+        success: true,
+        message: "Doc ID " + docId + " removed from queue.",
+        docId: docId,
+        statusCode: 200,
       };
     }
 
@@ -265,7 +343,9 @@ export class DocService {
           return {
             success: false,
             message:
-              "Doc ID is already delivered and cannot be scanned again for Route " +
+              "Doc ID " +
+              docId +
+              " is already delivered and cannot be scanned again for Route " +
               existingDoc.route,
             docId: docId,
             statusCode: 400, // Bad Request
@@ -275,7 +355,9 @@ export class DocService {
           return {
             success: false,
             message:
-              "Doc ID is already scheduled for a trip for Route " +
+              "Doc ID " +
+              docId +
+              " is already scheduled for a trip for Route " +
               existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
@@ -285,7 +367,10 @@ export class DocService {
           return {
             success: false,
             message:
-              "Doc ID is already out on a trip for Route " + existingDoc.route,
+              "Doc ID " +
+              docId +
+              " is already out on a trip for Route " +
+              existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
           };
@@ -294,7 +379,9 @@ export class DocService {
           return {
             success: true,
             message:
-              "Doc ID re-scanned. Was already in Queue for Route " +
+              "Doc ID " +
+              docId +
+              " re-scanned. Was already in Queue for Route " +
               existingDoc.route,
             docId: docId,
             statusCode: 409, // Conflict
@@ -304,7 +391,9 @@ export class DocService {
           return {
             success: true,
             message:
-              "Scanned and added to Queue for Route " +
+              "Doc ID " +
+              docId +
+              " scanned and added to Queue for Route " +
               existingDoc.route +
               " (previous delivery attempt failed)",
             docId: docId,
@@ -315,7 +404,9 @@ export class DocService {
           return {
             success: true,
             message:
-              "Scanned from transit hub and added to Queue for Route " +
+              "Doc ID " +
+              docId +
+              " scanned from transit hub and added to Queue for Route " +
               existingDoc.route,
             docId: docId,
             statusCode: 200, // OK
@@ -457,7 +548,11 @@ export class DocService {
 
     return {
       success: true,
-      message: "Scanned and added to Queue for Route " + matchedDoc.routeId,
+      message:
+        "Doc ID " +
+        docId +
+        " scanned and added to Queue for Route " +
+        matchedDoc.routeId,
       docId: docId,
       statusCode: 200, // Created
     };
@@ -512,11 +607,13 @@ export class DocService {
           scannedByName: scannedByName,
           scannedFromLocation: loggedInUser.baseLocationName,
           count: 0,
+          docIdList: [],
         };
         userMap.set(scannedByName, userSummary);
       }
 
       userMap.get(scannedByName).count++;
+      userMap.get(scannedByName).docIdList.push(doc.id);
     }
 
     // Convert Map structure to DispatchQueueList format

@@ -133,10 +133,10 @@ export class TripService {
         documentsToLoad.length > 0 &&
         this.settingsCacheService.getUpdateDocStatusToErp()
       ) {
-        void Promise.all(
-          documentsToLoad.map((doc) =>
-            axios
-              .post(
+        void (async () => {
+          for (const doc of documentsToLoad) {
+            try {
+              await axios.post(
                 `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
@@ -144,15 +144,15 @@ export class TripService {
                   userId: loggedInUser.id,
                 },
                 { headers: getErpApiHeaders() }
-              )
-              .catch((e) => {
-                console.error(
-                  `Failed to update doc ${doc.id} with status ${DocStatus.TRIP_SCHEDULED} at ERP API:`,
-                  e
-                );
-              })
-          )
-        );
+              );
+            } catch (e) {
+              console.error(
+                `Failed to update doc ${doc.id} with status ${DocStatus.TRIP_SCHEDULED} at ERP API:`,
+                e
+              );
+            }
+          }
+        })();
       }
 
       return {
@@ -414,10 +414,10 @@ export class TripService {
         associatedDocs.length > 0 &&
         this.settingsCacheService.getUpdateDocStatusToErp()
       ) {
-        void Promise.all(
-          associatedDocs.map((doc) =>
-            axios
-              .post(
+        void (async () => {
+          for (const doc of associatedDocs) {
+            try {
+              await axios.post(
                 `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
@@ -425,15 +425,15 @@ export class TripService {
                   userId: loggedInUser.id,
                 },
                 { headers: getErpApiHeaders() }
-              )
-              .catch((e) => {
-                console.error(
-                  `Failed to update doc ${doc.id} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
-                  e
-                );
-              })
-          )
-        );
+              );
+            } catch (e) {
+              console.error(
+                `Failed to update doc ${doc.id} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
+                e
+              );
+            }
+          }
+        })();
       }
 
       return {
@@ -533,10 +533,10 @@ export class TripService {
         associatedDocs.length > 0 &&
         this.settingsCacheService.getUpdateDocStatusToErp()
       ) {
-        void Promise.all(
-          associatedDocs.map((doc) =>
-            axios
-              .post(
+        void (async () => {
+          for (const doc of associatedDocs) {
+            try {
+              await axios.post(
                 `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
@@ -544,15 +544,15 @@ export class TripService {
                   userId: loggedInUser.id,
                 },
                 { headers: getErpApiHeaders() }
-              )
-              .catch((e) => {
-                console.error(
-                  `Failed to update doc ${doc.id} with status ${DocStatus.ON_TRIP} at ERP API:`,
-                  e
-                );
-              })
-          )
-        );
+              );
+            } catch (e) {
+              console.error(
+                `Failed to update doc ${doc.id} with status ${DocStatus.ON_TRIP} at ERP API:`,
+                e
+              );
+            }
+          }
+        })();
       }
 
       // Send SMS to customers for all documents that moved to ON_TRIP (non-blocking)
@@ -1079,10 +1079,10 @@ export class TripService {
         docsToMarkUndelivered.length > 0 &&
         this.settingsCacheService.getUpdateDocStatusToErp()
       ) {
-        void Promise.all(
-          docsToMarkUndelivered.map((doc) =>
-            axios
-              .post(
+        void (async () => {
+          for (const doc of docsToMarkUndelivered) {
+            try {
+              await axios.post(
                 `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
@@ -1090,15 +1090,15 @@ export class TripService {
                   userId: loggedInUser.id,
                 },
                 { headers: getErpApiHeaders() }
-              )
-              .catch((e) => {
-                console.error(
-                  `Failed to update doc ${doc.id} with status ${DocStatus.UNDELIVERED} at ERP API:`,
-                  e
-                );
-              })
-          )
-        );
+              );
+            } catch (e) {
+              console.error(
+                `Failed to update doc ${doc.id} with status ${DocStatus.UNDELIVERED} at ERP API:`,
+                e
+              );
+            }
+          }
+        })();
       }
 
       return {
@@ -1208,10 +1208,10 @@ export class TripService {
       // The ERP API only accepts a single docId, so send the request one by one for each doc.
       // Fire off all ERP API requests in parallel; don't await for each to finish
       if (this.settingsCacheService.getUpdateDocStatusToErp()) {
-        void Promise.all(
-          docsToUpdate.map((doc) =>
-            axios
-              .post(
+        void (async () => {
+          for (const doc of docsToUpdate) {
+            try {
+              await axios.post(
                 `${getErpApiStatusUpdateHookUrl()}`,
                 {
                   docId: doc.id,
@@ -1219,16 +1219,16 @@ export class TripService {
                   userId: loggedInUser.id,
                 },
                 { headers: getErpApiHeaders() }
-              )
-              .catch((e) => {
-                // Optionally log error here; errors won't block main flow
-                console.error(
-                  `Failed to update doc ${doc.id} with status ${DocStatus.AT_TRANSIT_HUB} at ERP API:`,
-                  e
-                );
-              })
-          )
-        );
+              );
+            } catch (e) {
+              // Optionally log error here; errors won't block main flow
+              console.error(
+                `Failed to update doc ${doc.id} with status ${DocStatus.AT_TRANSIT_HUB} at ERP API:`,
+                e
+              );
+            }
+          }
+        })();
       }
 
       return {
