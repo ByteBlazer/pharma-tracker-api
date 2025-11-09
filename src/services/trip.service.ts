@@ -1223,7 +1223,7 @@ export class TripService {
             } catch (e) {
               // Optionally log error here; errors won't block main flow
               console.error(
-                `Failed to update doc ${doc.id} with status ${DocStatus.AT_TRANSIT_HUB} at ERP API:`,
+                `Failed to update doc ${doc.id} with status ${DocStatus.AT_TRANSIT_HUB}d at ERP API:`,
                 e
               );
             }
