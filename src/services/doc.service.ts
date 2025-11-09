@@ -1677,12 +1677,10 @@ export class DocService {
     }
 
     const docIdsToCheck = otherDocsForCustomer.map((otherDoc) => otherDoc.id);
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
 
     const recentSignature = await this.signatureRepository.findOne({
       where: {
         docId: In(docIdsToCheck),
-        lastUpdatedAt: MoreThanOrEqual(tenMinutesAgo),
       },
       order: {
         lastUpdatedAt: "DESC",
