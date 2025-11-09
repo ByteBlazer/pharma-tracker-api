@@ -1631,4 +1631,73 @@ export class DocService {
       statusCode: 200,
     };
   }
+
+  async getRecentSignatureFromTripForCustomer(
+    docId: string,
+    tripId: number
+  ): Promise<{
+    success: boolean;
+    docId: string;
+    signature: string;
+    lastUpdatedAt: Date;
+  }> {
+    const doc = await this.docRepository.findOne({ where: { id: docId } });
+
+    if (!doc) {
+      throw new NotFoundException(
+        `Document with id ${docId} was not found in the system`
+      );
+    }
+
+    if (doc.tripId.toString() !== tripId.toString()) {
+      throw new BadRequestException(
+        `Document ${docId} is not part of trip ${tripId}`
+      );
+    }
+
+    if (!doc.customerId) {
+      throw new BadRequestException(
+        `Document ${docId} does not have an associated customer`
+      );
+    }
+
+    const otherDocsForCustomer = await this.docRepository.find({
+      where: {
+        tripId: tripId,
+        customerId: doc.customerId,
+        id: Not(docId),
+      },
+      select: ["id"],
+    });
+
+    if (otherDocsForCustomer.length === 0) {
+      throw new BadRequestException(
+        "No other documents for this customer found in the trip"
+      );
+    }
+
+    const docIdsToCheck = otherDocsForCustomer.map((otherDoc) => otherDoc.id);
+
+    const recentSignature = await this.signatureRepository.findOne({
+      where: {
+        docId: In(docIdsToCheck),
+      },
+      order: {
+        lastUpdatedAt: "DESC",
+      },
+    });
+
+    if (!recentSignature) {
+      throw new BadRequestException(
+        "No recent signatures found for this customer within the trip"
+      );
+    }
+
+    return {
+      success: true,
+      docId: recentSignature.docId,
+      signature: recentSignature.signature.toString("base64"),
+      lastUpdatedAt: recentSignature.lastUpdatedAt,
+    };
+  }
 }

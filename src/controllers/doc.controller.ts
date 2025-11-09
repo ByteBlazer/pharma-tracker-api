@@ -11,6 +11,7 @@ import {
   Query,
   Req,
   Res,
+  NotFoundException,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
@@ -381,6 +382,57 @@ export class DocController {
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
           message: "Failed to get delivery status",
+          error: error.message,
+        });
+      }
+    }
+  }
+
+  @Get("recent-signature/:tripId/:docId")
+  @RequireRoles(UserRole.APP_ADMIN, UserRole.APP_TRIP_DRIVER)
+  async getRecentSignatureForCustomerDocs(
+    @Param("tripId") tripIdParam: string,
+    @Param("docId") docId: string,
+    @Res() res: Response
+  ): Promise<void> {
+    const tripId = Number(tripIdParam);
+
+    if (Number.isNaN(tripId)) {
+      res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        message: "tripId must be a valid number",
+      });
+      return;
+    }
+
+    try {
+      const result =
+        await this.docService.getRecentSignatureFromTripForCustomer(
+          docId,
+          tripId
+        );
+
+      res.status(HttpStatus.OK).json({
+        success: result.success,
+        signature: result.signature,
+        lastUpdatedAt: result.lastUpdatedAt,
+      });
+    } catch (error) {
+      console.log(error);
+      if (error instanceof BadRequestException) {
+        res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error instanceof NotFoundException) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Failed to fetch recent signature",
           error: error.message,
         });
       }
