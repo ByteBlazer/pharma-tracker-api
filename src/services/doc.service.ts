@@ -1163,22 +1163,22 @@ export class DocService {
 
     // Update ERP with UNDELIVERED status (non-blocking)
     if (this.settingsCacheService.getUpdateDocStatusToErp()) {
-      void axios
-        .post(
+      try {
+        await axios.post(
           `${getErpApiStatusUpdateHookUrl()}`,
           {
             docId: docId,
             status: DocStatus.UNDELIVERED,
             userId: loggedInUser.id,
           },
-          { headers: getErpApiHeaders() }
-        )
-        .catch((e) => {
-          console.error(
-            `Failed to update doc ${docId} with status ${DocStatus.UNDELIVERED} at ERP API:`,
-            e
-          );
-        });
+          { headers: getErpApiHeaders(), timeout: 5000 }
+        );
+      } catch (e) {
+        console.error(
+          `Failed to update doc ${docId} with status ${DocStatus.UNDELIVERED} at ERP API:`,
+          e
+        );
+      }
     }
 
     return {
