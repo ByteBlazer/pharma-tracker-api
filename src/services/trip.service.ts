@@ -832,7 +832,8 @@ export class TripService {
       return docs;
     }
 
-    // Sort docs by distance, putting docs without customer location at the end
+    // Sort docs by distance, putting docs without customer location at the end.
+    // If distances are equal (or unavailable), use customerId as a secondary sort.
     return docs.sort((a, b) => {
       const aHasLocation = a.customer?.geoLatitude && a.customer?.geoLongitude;
       const bHasLocation = b.customer?.geoLatitude && b.customer?.geoLongitude;
@@ -857,7 +858,10 @@ export class TripService {
             bLat,
             bLng
           );
-          return distanceA - distanceB;
+          if (distanceA !== distanceB) {
+            return distanceA - distanceB;
+          }
+          return this.compareDocsByCustomerId(a, b);
         }
       }
 
@@ -865,8 +869,8 @@ export class TripService {
       if (aHasLocation && !bHasLocation) return -1;
       if (!aHasLocation && bHasLocation) return 1;
 
-      // If neither has location data, maintain original order
-      return 0;
+      // If neither has location data, fall back to customerId sort
+      return this.compareDocsByCustomerId(a, b);
     });
   }
 
@@ -888,6 +892,35 @@ export class TripService {
         Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in kilometers
+  }
+
+  private compareDocsByCustomerId(a: Doc, b: Doc): number {
+    const customerIdA =
+      a.customerId !== undefined && a.customerId !== null
+        ? String(a.customerId)
+        : null;
+    const customerIdB =
+      b.customerId !== undefined && b.customerId !== null
+        ? String(b.customerId)
+        : null;
+
+    if (customerIdA && customerIdB) {
+      const comparison = customerIdA.localeCompare(customerIdB);
+      if (comparison !== 0) {
+        return comparison;
+      }
+      return 0;
+    }
+
+    if (customerIdA && !customerIdB) {
+      return -1;
+    }
+
+    if (!customerIdA && customerIdB) {
+      return 1;
+    }
+
+    return 0;
   }
 
   private toRadians(degrees: number): number {
