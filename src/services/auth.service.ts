@@ -61,6 +61,9 @@ export class AuthService {
     ) {
       return;
     }
+    const encodedAppCode = appCode
+      ? encodeURIComponent(encodeURIComponent(appCode))
+      : "";
 
     const generateOtpUrl =
       GlobalConstants.SMS_GENERATE_OTP_TEMPLATE.replace(
@@ -69,7 +72,7 @@ export class AuthService {
       )
         .replace("{mobilePhone}", authRequestDto.mobile)
         .replace("{otpTemplateName}", GlobalConstants.SMS_OTP_TEMPLATE) +
-      (appCode ? `?var1=${appCode}` : "");
+      (encodedAppCode ? `?var1=${encodedAppCode}` : "");
 
     let generateOtpResponse;
 
