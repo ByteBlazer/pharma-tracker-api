@@ -61,7 +61,9 @@ export class AuthService {
     ) {
       return;
     }
-    const encodedAppCode = appCode ? encodeURIComponent(appCode) : "";
+    const encodedAppCode = appCode
+      ? encodeURIComponent(encodeURIComponent(appCode))
+      : "";
 
     const generateOtpUrl =
       GlobalConstants.SMS_GENERATE_OTP_TEMPLATE.replace(
