@@ -285,6 +285,10 @@ export class DocService {
     });
     if (existingDoc) {
       if (docFromErp) {
+        if (existingDoc.status === DocStatus.AT_TRANSIT_HUB) {
+          docFromErp.lotNbr == "";
+        }
+
         let dbUpdateRequiredBecauseOfErpMismatch = false;
         //TODO: If existing doc and existing doc status does not equals delivered, and ERP status is delivered,then return a custom error message.
         if (docFromErp.status === DocStatus.DELIVERED) {
