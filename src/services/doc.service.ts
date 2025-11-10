@@ -1109,27 +1109,27 @@ export class DocService {
       };
     });
 
-    // Update ERP with DELIVERED status (non-blocking)
+    // Update ERP with DELIVERED status
     if (this.settingsCacheService.getUpdateDocStatusToErp()) {
       console.log("Updating doc status to ERP API");
-      void axios
-        .post(
+      try {
+        await axios.post(
           `${getErpApiStatusUpdateHookUrl()}`,
           {
             docId: docId,
             status: DocStatus.DELIVERED,
             userId: loggedInUser.id,
           },
-          { headers: getErpApiHeaders() }
-        )
-        .catch((e) => {
-          console.error(
-            `Failed to update doc ${docId} with status ${DocStatus.DELIVERED} at ERP API:`,
-            e
-          );
-        });
+          { headers: getErpApiHeaders(), timeout: 5000 }
+        );
+      } catch (e) {
+        console.error(
+          `Failed to update doc ${docId} with status ${DocStatus.DELIVERED} at ERP API:`,
+          e
+        );
+      }
     }
-    console.log("results", result);
+
     return result;
   }
 
