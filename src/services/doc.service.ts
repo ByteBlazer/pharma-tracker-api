@@ -285,7 +285,10 @@ export class DocService {
     });
     if (existingDoc) {
       if (docFromErp) {
-        if (existingDoc.status === DocStatus.AT_TRANSIT_HUB) {
+        //If the doc has even been dropped off at a transit hub, then don't update the lot number.
+        //We are supposed to get a lot number removed from ERP when we scan at transit hub.
+        //But somtimes the status update to AT_TRANSIT_HUB might not have been successful to ERP because of network issues.
+        if (existingDoc.transitHubLatitude && existingDoc.transitHubLongitude) {
           docFromErp.lotNbr == "";
         }
 
