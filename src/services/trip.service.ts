@@ -742,8 +742,11 @@ export class TripService {
       const isDirectDelivery =
         lot === GlobalConstants.DIRECT_DELIVERIES_GROUP_HEADING;
 
-      // Sort documents within the group by distance if driver location is available
-      const sortedDocs = this.sortDocsByDistance(docsInGroup, driverLocation);
+      // Sort documents within the group by delivery status and distance if driver location is available
+      const sortedDocs = this.sortDocsByDeliveryStatusAndDistance(
+        docsInGroup,
+        driverLocation
+      );
 
       // Calculate dropOffCompleted for lot groups
       let dropOffCompleted = false;
@@ -814,27 +817,46 @@ export class TripService {
     return docGroups;
   }
 
-  private sortDocsByDistance(
+  private sortDocsByDeliveryStatusAndDistance(
     docs: Doc[],
     driverLocation?: LocationHeartbeat
   ): Doc[] {
-    // If no driver location available, return docs as-is
-    if (!driverLocation) {
-      return docs;
-    }
+    // First level sort: Move DELIVERED and UNDELIVERED to the bottom
+    // Second level sort: Sort by distance (if driver location available)
+    // Third level sort: Sort by customerId if distances are equal
 
-    // Parse driver location
-    const driverLat = parseFloat(driverLocation.geoLatitude);
-    const driverLng = parseFloat(driverLocation.geoLongitude);
-
-    // If driver location is invalid, return docs as-is
-    if (isNaN(driverLat) || isNaN(driverLng)) {
-      return docs;
-    }
-
-    // Sort docs by distance, putting docs without customer location at the end.
-    // If distances are equal (or unavailable), use customerId as a secondary sort.
     return docs.sort((a, b) => {
+      // First level: Sort by delivery status
+      // DELIVERED and UNDELIVERED go to the bottom
+      const aIsDeliveredOrUndelivered =
+        a.status === DocStatus.DELIVERED || a.status === DocStatus.UNDELIVERED;
+      const bIsDeliveredOrUndelivered =
+        b.status === DocStatus.DELIVERED || b.status === DocStatus.UNDELIVERED;
+
+      if (aIsDeliveredOrUndelivered && !bIsDeliveredOrUndelivered) {
+        return 1; // a goes to bottom
+      }
+      if (!aIsDeliveredOrUndelivered && bIsDeliveredOrUndelivered) {
+        return -1; // b goes to bottom
+      }
+
+      // If both are in the same category (both delivered/undelivered or both not),
+      // proceed to second level sort by distance
+      if (!driverLocation) {
+        // No driver location, fall back to customerId sort
+        return this.compareDocsByCustomerId(a, b);
+      }
+
+      // Parse driver location
+      const driverLat = parseFloat(driverLocation.geoLatitude);
+      const driverLng = parseFloat(driverLocation.geoLongitude);
+
+      // If driver location is invalid, fall back to customerId sort
+      if (isNaN(driverLat) || isNaN(driverLng)) {
+        return this.compareDocsByCustomerId(a, b);
+      }
+
+      // Second level: Sort by distance
       const aHasLocation = a.customer?.geoLatitude && a.customer?.geoLongitude;
       const bHasLocation = b.customer?.geoLatitude && b.customer?.geoLongitude;
 
@@ -861,6 +883,7 @@ export class TripService {
           if (distanceA !== distanceB) {
             return distanceA - distanceB;
           }
+          // Third level: If distances are equal, sort by customerId
           return this.compareDocsByCustomerId(a, b);
         }
       }
