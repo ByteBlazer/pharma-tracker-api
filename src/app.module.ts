@@ -11,6 +11,7 @@ import { GreetingController } from "./controllers/greeting.controller";
 import { LocationController } from "./controllers/location.controller";
 import { SettingController } from "./controllers/setting.controller";
 import { TripController } from "./controllers/trip.controller";
+import { ApiOutboundLog } from "./entities/api-outbound-log.entity";
 import { AppUserXUserRole } from "./entities/app-user-x-user-role.entity";
 import { AppUser } from "./entities/app-user.entity";
 import { BaseLocation } from "./entities/base-location.entity";
@@ -54,6 +55,7 @@ import { TripService } from "./services/trip.service";
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
       entities: [
+        ApiOutboundLog,
         AppUser,
         BaseLocation,
         UserRole,
@@ -71,6 +73,7 @@ import { TripService } from "./services/trip.service";
       logging: false,
     }),
     TypeOrmModule.forFeature([
+      ApiOutboundLog,
       AppUser,
       BaseLocation,
       UserRole,
