@@ -2,10 +2,15 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe } from "@nestjs/common";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { DataSource } from "typeorm";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import axios from "axios";
+import {
+  initializeErpApiLogger,
+  configureErpApiLogging,
+} from "./utils/erp-api-logger.utils";
 
 /**
  * Load AWS credentials from local AWS CLI credentials file
@@ -161,6 +166,11 @@ async function bootstrap() {
   configureAxiosLogging();
 
   const app = await NestFactory.create(AppModule);
+
+  // Initialize ERP API logger with DataSource
+  const dataSource = app.get(DataSource);
+  initializeErpApiLogger(dataSource);
+  configureErpApiLogging();
 
   // Set global API prefix
   app.setGlobalPrefix("api");
