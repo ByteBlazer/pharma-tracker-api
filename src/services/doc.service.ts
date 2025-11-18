@@ -1122,6 +1122,10 @@ export class DocService {
             docId: docId,
             status: DocStatus.DELIVERED,
             userId: loggedInUser.id,
+            actualDeliveryLocationLat: markDeliveryDto.deliveryLatitude || "",
+            actualDeliveryLocationLng: markDeliveryDto.deliveryLongitude || "",
+            deliveryTime: new Date(),
+            comment: markDeliveryDto.deliveryComment || "",
           },
           { headers: getErpApiHeaders(), timeout: 5000 }
         );
@@ -1173,6 +1177,7 @@ export class DocService {
             docId: docId,
             status: DocStatus.UNDELIVERED,
             userId: loggedInUser.id,
+            comment: markDeliveryFailedDto.failureComment || "",
           },
           { headers: getErpApiHeaders(), timeout: 5000 }
         );
