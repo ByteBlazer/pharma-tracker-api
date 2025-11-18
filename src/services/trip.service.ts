@@ -1213,14 +1213,9 @@ export class TripService {
       where: {
         tripId: tripId,
         lot: lotHeading,
+        status: DocStatus.ON_TRIP,
       },
     });
-
-    if (docsToUpdate.length === 0) {
-      throw new BadRequestException(
-        `No documents found with lot heading '${lotHeading}' in trip ${tripId}.`
-      );
-    }
 
     // Get driver's last known location
     const driverLastLocation = await this.locationHeartbeatRepository.findOne({
