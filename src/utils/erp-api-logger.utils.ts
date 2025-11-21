@@ -143,15 +143,7 @@ export function configureErpApiLogging(): void {
         // Limit response body size to prevent huge logs
         let responseBody = response.data;
         if (responseBody && typeof responseBody === "object") {
-          const jsonString = JSON.stringify(responseBody);
-          if (jsonString.length > 10000) {
-            // Truncate large responses
-            responseBody = {
-              _truncated: true,
-              _originalLength: jsonString.length,
-              _preview: JSON.parse(jsonString),
-            };
-          }
+          const jsonString = JSON.stringify(responseBody).substring(0, 1000);
         }
 
         void logErpApiCall({
