@@ -11,6 +11,7 @@ import { TripStatus } from "src/enums/trip-status.enum";
 import {
   DataSource,
   In,
+  IsNull,
   Like,
   MoreThan,
   MoreThanOrEqual,
@@ -1423,6 +1424,7 @@ export class DocService {
           tripId: trip.id,
           id: Not(currentDoc.id), // Exclude current document
           status: DocStatus.ON_TRIP,
+          lot: IsNull(), // Only include docs with no lot assigned
         },
         relations: ["customer"],
       });
