@@ -149,7 +149,7 @@ export function configureErpApiLogging(): void {
             responseBody = {
               _truncated: true,
               _originalLength: jsonString.length,
-              _preview: JSON.parse(jsonString.substring(0, 1000)),
+              _preview: JSON.parse(jsonString),
             };
           }
         }
