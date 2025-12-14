@@ -54,6 +54,51 @@ export class TripService {
     private readonly settingsCacheService: SettingsCacheService
   ) {}
 
+  private async buildErpHookPayload(
+    doc: Doc,
+    status: DocStatus,
+    loggedInUser: JwtPayload
+  ): Promise<{
+    docId: string;
+    status: DocStatus;
+    userId: string;
+    personName: string;
+    driverName: string;
+    vehicleNbr: string;
+  }> {
+    // Get logged-in user's personName
+    const user = await this.appUserRepository.findOne({
+      where: { id: loggedInUser.id },
+      select: { personName: true },
+    });
+    const personName = user?.personName || "";
+
+    // Get driverName and vehicleNbr from trip if doc has tripId
+    let driverName = "";
+    let vehicleNbr = "";
+
+    if (doc.tripId) {
+      const trip = await this.tripRepository.findOne({
+        where: { id: doc.tripId },
+        relations: { driver: true },
+      });
+
+      if (trip) {
+        driverName = trip.driver?.personName || "";
+        vehicleNbr = trip.vehicleNbr || "";
+      }
+    }
+
+    return {
+      docId: doc.id,
+      status: status,
+      userId: loggedInUser.id,
+      personName: personName,
+      driverName: driverName,
+      vehicleNbr: vehicleNbr,
+    };
+  }
+
   async createTrip(createTripDto: CreateTripDto, loggedInUser: JwtPayload) {
     const {
       route,
@@ -136,15 +181,16 @@ export class TripService {
         void (async () => {
           for (const doc of documentsToLoad) {
             try {
-              await axios.post(
-                `${getErpApiStatusUpdateHookUrl()}`,
-                {
-                  docId: doc.id,
-                  status: DocStatus.TRIP_SCHEDULED,
-                  userId: loggedInUser.id,
-                },
-                { headers: getErpApiHeaders() }
+              // Update doc with tripId before building payload
+              doc.tripId = savedTrip.id;
+              const payload = await this.buildErpHookPayload(
+                doc,
+                DocStatus.TRIP_SCHEDULED,
+                loggedInUser
               );
+              await axios.post(`${getErpApiStatusUpdateHookUrl()}`, payload, {
+                headers: getErpApiHeaders(),
+              });
             } catch (e) {
               console.error(
                 `Failed to update doc ${doc.id} with status ${DocStatus.TRIP_SCHEDULED} at ERP API:`,
@@ -417,15 +463,16 @@ export class TripService {
         void (async () => {
           for (const doc of associatedDocs) {
             try {
-              await axios.post(
-                `${getErpApiStatusUpdateHookUrl()}`,
-                {
-                  docId: doc.id,
-                  status: DocStatus.READY_FOR_DISPATCH,
-                  userId: loggedInUser.id,
-                },
-                { headers: getErpApiHeaders() }
+              // Set tripId to null to reflect the state after transaction (doc is no longer associated with trip)
+              doc.tripId = null;
+              const payload = await this.buildErpHookPayload(
+                doc,
+                DocStatus.READY_FOR_DISPATCH,
+                loggedInUser
               );
+              await axios.post(`${getErpApiStatusUpdateHookUrl()}`, payload, {
+                headers: getErpApiHeaders(),
+              });
             } catch (e) {
               console.error(
                 `Failed to update doc ${doc.id} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
@@ -536,15 +583,14 @@ export class TripService {
         void (async () => {
           for (const doc of associatedDocs) {
             try {
-              await axios.post(
-                `${getErpApiStatusUpdateHookUrl()}`,
-                {
-                  docId: doc.id,
-                  status: DocStatus.ON_TRIP,
-                  userId: loggedInUser.id,
-                },
-                { headers: getErpApiHeaders() }
+              const payload = await this.buildErpHookPayload(
+                doc,
+                DocStatus.ON_TRIP,
+                loggedInUser
               );
+              await axios.post(`${getErpApiStatusUpdateHookUrl()}`, payload, {
+                headers: getErpApiHeaders(),
+              });
             } catch (e) {
               console.error(
                 `Failed to update doc ${doc.id} with status ${DocStatus.ON_TRIP} at ERP API:`,
@@ -1138,15 +1184,14 @@ export class TripService {
         void (async () => {
           for (const doc of docsToMarkUndelivered) {
             try {
-              await axios.post(
-                `${getErpApiStatusUpdateHookUrl()}`,
-                {
-                  docId: doc.id,
-                  status: DocStatus.UNDELIVERED,
-                  userId: loggedInUser.id,
-                },
-                { headers: getErpApiHeaders() }
+              const payload = await this.buildErpHookPayload(
+                doc,
+                DocStatus.UNDELIVERED,
+                loggedInUser
               );
+              await axios.post(`${getErpApiStatusUpdateHookUrl()}`, payload, {
+                headers: getErpApiHeaders(),
+              });
             } catch (e) {
               console.error(
                 `Failed to update doc ${doc.id} with status ${DocStatus.UNDELIVERED} at ERP API:`,
@@ -1262,15 +1307,16 @@ export class TripService {
         void (async () => {
           for (const doc of docsToUpdate) {
             try {
-              await axios.post(
-                `${getErpApiStatusUpdateHookUrl()}`,
-                {
-                  docId: doc.id,
-                  status: DocStatus.AT_TRANSIT_HUB,
-                  userId: loggedInUser.id,
-                },
-                { headers: getErpApiHeaders() }
+              // Set tripId to null to reflect the state after transaction (doc is no longer associated with trip)
+              doc.tripId = null;
+              const payload = await this.buildErpHookPayload(
+                doc,
+                DocStatus.AT_TRANSIT_HUB,
+                loggedInUser
               );
+              await axios.post(`${getErpApiStatusUpdateHookUrl()}`, payload, {
+                headers: getErpApiHeaders(),
+              });
             } catch (e) {
               // Optionally log error here; errors won't block main flow
               console.error(
