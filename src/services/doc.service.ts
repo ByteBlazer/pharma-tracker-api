@@ -77,6 +77,51 @@ export class DocService {
     return doc.status as DocStatus;
   }
 
+  private async buildErpHookPayload(
+    doc: Doc,
+    status: DocStatus,
+    loggedInUser: JwtPayload
+  ): Promise<{
+    docId: string;
+    status: DocStatus;
+    userId: string;
+    personName: string;
+    driverName: string;
+    vehicleNbr: string;
+  }> {
+    // Get logged-in user's personName
+    const user = await this.appUserRepository.findOne({
+      where: { id: loggedInUser.id },
+      select: { personName: true },
+    });
+    const personName = user?.personName || "";
+
+    // Get driverName and vehicleNbr from trip if doc has tripId
+    let driverName = "";
+    let vehicleNbr = "";
+
+    if (doc.tripId) {
+      const trip = await this.tripRepository.findOne({
+        where: { id: doc.tripId },
+        relations: { driver: true },
+      });
+
+      if (trip) {
+        driverName = trip.driver?.personName || "";
+        vehicleNbr = trip.vehicleNbr || "";
+      }
+    }
+
+    return {
+      docId: doc.id,
+      status: status,
+      userId: loggedInUser.id,
+      personName: personName,
+      driverName: driverName,
+      vehicleNbr: vehicleNbr,
+    };
+  }
+
   async getDocumentsByTripId(tripId: number): Promise<Doc[]> {
     return await this.docRepository.find({
       where: { tripId: tripId },
@@ -259,18 +304,29 @@ export class DocService {
       }
 
       // Remove document from queue
+      // Store tripId before deletion for ERP hook
+      const tripIdBeforeDelete = existingDoc.tripId;
       await this.docRepository.delete(docId);
       // Update ERP with PENDING status (non-blocking)
       if (this.settingsCacheService.getUpdateDocStatusToErp()) {
-        void axios.post(
-          `${getErpApiStatusUpdateHookUrl()}`,
-          {
-            docId: docId,
-            status: DocStatus.PENDING,
-            userId: loggedInUser.id,
-          },
-          { headers: getErpApiHeaders() }
-        );
+        void (async () => {
+          try {
+            const doc = { id: docId, tripId: tripIdBeforeDelete } as Doc;
+            const payload = await this.buildErpHookPayload(
+              doc,
+              DocStatus.PENDING,
+              loggedInUser
+            );
+            await axios.post(`${getErpApiStatusUpdateHookUrl()}`, payload, {
+              headers: getErpApiHeaders(),
+            });
+          } catch (e) {
+            console.error(
+              `Failed to update doc ${docId} with status ${DocStatus.PENDING} at ERP API:`,
+              e
+            );
+          }
+        })();
       }
       return {
         success: true,
@@ -327,21 +383,22 @@ export class DocService {
 
         // Update ERP with READY_FOR_DISPATCH status for existing document re-scan (non-blocking)
         if (this.settingsCacheService.getUpdateDocStatusToErp()) {
-          void axios
-            .post(
-              `${getErpApiStatusUpdateHookUrl()}`,
-              {
-                docId: docId,
-                status: DocStatus.READY_FOR_DISPATCH,
-                userId: loggedInUser.id,
-              },
-              { headers: getErpApiHeaders() }
-            )
-            .catch((e) => {
+          void (async () => {
+            try {
+              const payload = await this.buildErpHookPayload(
+                existingDoc,
+                DocStatus.READY_FOR_DISPATCH,
+                loggedInUser
+              );
+              await axios.post(`${getErpApiStatusUpdateHookUrl()}`, payload, {
+                headers: getErpApiHeaders(),
+              });
+            } catch (e) {
               console.error(
                 `Failed to update doc ${docId} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API`
               );
-            });
+            }
+          })();
         }
       }
 
@@ -536,22 +593,23 @@ export class DocService {
 
     // Update ERP with READY_FOR_DISPATCH status for new document (non-blocking)
     if (this.settingsCacheService.getUpdateDocStatusToErp()) {
-      void axios
-        .post(
-          `${getErpApiStatusUpdateHookUrl()}`,
-          {
-            docId: docId,
-            status: DocStatus.READY_FOR_DISPATCH,
-            userId: loggedInUser.id,
-          },
-          { headers: getErpApiHeaders() }
-        )
-        .catch((e) => {
+      void (async () => {
+        try {
+          const payload = await this.buildErpHookPayload(
+            newDoc,
+            DocStatus.READY_FOR_DISPATCH,
+            loggedInUser
+          );
+          await axios.post(`${getErpApiStatusUpdateHookUrl()}`, payload, {
+            headers: getErpApiHeaders(),
+          });
+        } catch (e) {
           console.error(
             `Failed to update doc ${docId} with status ${DocStatus.READY_FOR_DISPATCH} at ERP API:`,
             e
           );
-        });
+        }
+      })();
     }
 
     return {
@@ -1117,12 +1175,15 @@ export class DocService {
     if (this.settingsCacheService.getUpdateDocStatusToErp()) {
       console.log("Updating doc status to ERP API");
       try {
+        const basePayload = await this.buildErpHookPayload(
+          existingDoc,
+          DocStatus.DELIVERED,
+          loggedInUser
+        );
         await axios.post(
           `${getErpApiStatusUpdateHookUrl()}`,
           {
-            docId: docId,
-            status: DocStatus.DELIVERED,
-            userId: loggedInUser.id,
+            ...basePayload,
             actualDeliveryLocationLat: markDeliveryDto.deliveryLatitude || "",
             actualDeliveryLocationLng: markDeliveryDto.deliveryLongitude || "",
             deliveryTime: new Date(),
@@ -1172,12 +1233,15 @@ export class DocService {
     // Update ERP with UNDELIVERED status (non-blocking)
     if (this.settingsCacheService.getUpdateDocStatusToErp()) {
       try {
+        const basePayload = await this.buildErpHookPayload(
+          existingDoc,
+          DocStatus.UNDELIVERED,
+          loggedInUser
+        );
         await axios.post(
           `${getErpApiStatusUpdateHookUrl()}`,
           {
-            docId: docId,
-            status: DocStatus.UNDELIVERED,
-            userId: loggedInUser.id,
+            ...basePayload,
             comment: markDeliveryFailedDto.failureComment || "",
           },
           { headers: getErpApiHeaders(), timeout: 5000 }
