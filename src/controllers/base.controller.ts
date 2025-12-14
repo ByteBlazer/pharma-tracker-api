@@ -86,6 +86,7 @@ export class BaseController {
       tripId: string;
       tripStartTime: string;
       tripEndTime?: string;
+      personName: string;
       driverName: string;
       vehicleNbr: string;
       docList: Array<{
@@ -172,6 +173,7 @@ export class BaseController {
             trip.status === TripStatus.CANCELLED
               ? trip.lastUpdatedAt.toISOString()
               : undefined,
+          personName: trip.driver?.personName || "",
           driverName: trip.driver?.personName || "",
           vehicleNbr: trip.vehicleNbr || "",
           docList: docList,
