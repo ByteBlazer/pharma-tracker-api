@@ -12,13 +12,15 @@ import { SkipAuth } from "src/decorators/skip-auth.decorator";
 import { DocStatus } from "src/enums/doc-status.enum";
 import { DocService } from "../services/doc.service";
 import { TripService } from "../services/trip.service";
+import { CustomerService } from "../services/customer.service";
 import { TripStatus } from "src/enums/trip-status.enum";
 
 @Controller("")
 export class BaseController {
   constructor(
     private readonly docService: DocService,
-    private readonly tripService: TripService
+    private readonly tripService: TripService,
+    private readonly customerService: CustomerService
   ) {}
 
   /**
@@ -184,5 +186,34 @@ export class BaseController {
     return {
       trips: transformedTrips,
     };
+  }
+
+  /**
+   * Get customer master data for filter dropdowns
+   */
+  @Get("customers")
+  async getCustomerMasterData(
+    @Query("lightweight") lightweight?: string
+  ): Promise<any[]> {
+    const isLightweight = lightweight === "true";
+    return await this.customerService.getCustomerMasterData(isLightweight);
+  }
+
+  /**
+   * Get route master data for filter dropdowns
+   * Returns distinct routes from the last 2 months of doc records
+   */
+  @Get("routes")
+  async getRouteMasterData(): Promise<string[]> {
+    return await this.docService.getRouteMasterData();
+  }
+
+  /**
+   * Get origin warehouse master data for filter dropdowns
+   * Returns distinct origin warehouses from the last 2 months of doc records
+   */
+  @Get("origin-warehouses")
+  async getOriginWarehouseMasterData(): Promise<string[]> {
+    return await this.docService.getOriginWarehouseMasterData();
   }
 }

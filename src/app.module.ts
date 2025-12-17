@@ -27,6 +27,7 @@ import { UserRole } from "./entities/user-role.entity";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { AuthService } from "./services/auth.service";
 import { BackupService } from "./services/backup.service";
+import { CustomerService } from "./services/customer.service";
 import { DocService } from "./services/doc.service";
 import { GreetingService } from "./services/greeting.service";
 import { LocationService } from "./services/location.service";
@@ -116,6 +117,7 @@ import { TripService } from "./services/trip.service";
     },
     AuthService,
     BackupService,
+    CustomerService,
     DocService,
     JwtAuthGuard,
     LocationService,

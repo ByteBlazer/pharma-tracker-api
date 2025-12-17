@@ -18,6 +18,7 @@ import {
   LessThanOrEqual,
   Not,
   Repository,
+  Between,
 } from "typeorm";
 import axios from "axios";
 
@@ -1778,5 +1779,66 @@ export class DocService {
       signature: recentSignature.signature.toString("base64"),
       lastUpdatedAt: recentSignature.lastUpdatedAt,
     };
+  }
+
+  async getRouteMasterData(): Promise<string[]> {
+    // Calculate date range for last 2 months
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date();
+    startDate.setMonth(endDate.getMonth() - 2);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Query distinct routes from doc table for the last 2 months
+    const docs = await this.docRepository.find({
+      where: {
+        docDate: Between(startDate, endDate),
+      },
+      select: ["route"],
+    });
+
+    // Extract distinct routes and filter out null/empty values
+    const distinctRoutes = Array.from(
+      new Set(
+        docs
+          .map((doc) => doc.route)
+          .filter((route) => route && route.trim() !== "")
+      )
+    );
+
+    // Sort routes alphabetically
+    return distinctRoutes.sort();
+  }
+
+  async getOriginWarehouseMasterData(): Promise<string[]> {
+    // Calculate date range for last 2 months
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date();
+    startDate.setMonth(endDate.getMonth() - 2);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Query distinct originWarehouse from doc table for the last 2 months
+    const docs = await this.docRepository.find({
+      where: {
+        docDate: Between(startDate, endDate),
+      },
+      select: ["originWarehouse"],
+    });
+
+    // Extract distinct originWarehouse and filter out null/empty values
+    const distinctOriginWarehouses = Array.from(
+      new Set(
+        docs
+          .map((doc) => doc.originWarehouse)
+          .filter(
+            (originWarehouse) =>
+              originWarehouse && originWarehouse.trim() !== ""
+          )
+      )
+    );
+
+    // Sort originWarehouse alphabetically
+    return distinctOriginWarehouses.sort();
   }
 }

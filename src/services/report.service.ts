@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { In, Not, IsNull, Between, Repository } from "typeorm";
+import { In, Not, IsNull, Between, Like, Repository } from "typeorm";
 import { Doc } from "../entities/doc.entity";
 import { DocStatus } from "../enums/doc-status.enum";
 import { GlobalConstants } from "../GlobalConstants";
@@ -58,7 +58,7 @@ export class ReportService {
       whereConditions.customerId = queryDto.customerId;
     }
     if (queryDto.docId) {
-      whereConditions.id = queryDto.docId;
+      whereConditions.id = Like(`%${queryDto.docId}%`);
     }
     if (queryDto.route) {
       whereConditions.route = queryDto.route;
@@ -81,8 +81,15 @@ export class ReportService {
     });
 
     // Apply customer city filter if provided (since it's on related entity)
+    // Support multiple cities as comma-separated values
     if (queryDto.customerCity) {
-      docs = docs.filter((doc) => doc.customer?.city === queryDto.customerCity);
+      const cities = queryDto.customerCity
+        .split(",")
+        .map((city) => city.trim())
+        .filter((city) => city.length > 0);
+      docs = docs.filter(
+        (doc) => doc.customer?.city && cities.includes(doc.customer.city)
+      );
     }
 
     // Apply driver filter if provided (using trip relation)
