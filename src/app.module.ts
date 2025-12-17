@@ -9,6 +9,7 @@ import { BaseController } from "./controllers/base.controller";
 import { DocController } from "./controllers/doc.controller";
 import { GreetingController } from "./controllers/greeting.controller";
 import { LocationController } from "./controllers/location.controller";
+import { ReportController } from "./controllers/report.controller";
 import { SettingController } from "./controllers/setting.controller";
 import { TripController } from "./controllers/trip.controller";
 import { ApiOutboundLog } from "./entities/api-outbound-log.entity";
@@ -29,6 +30,7 @@ import { BackupService } from "./services/backup.service";
 import { DocService } from "./services/doc.service";
 import { GreetingService } from "./services/greeting.service";
 import { LocationService } from "./services/location.service";
+import { ReportService } from "./services/report.service";
 import { SettingService } from "./services/setting.service";
 import { SettingsCacheService } from "./services/settings-cache.service";
 import { MockDataService } from "./services/mock-data.service";
@@ -103,6 +105,7 @@ import { TripService } from "./services/trip.service";
     DocController,
     LocationController,
     GreetingController,
+    ReportController,
     SettingController,
     TripController,
   ],
@@ -117,6 +120,7 @@ import { TripService } from "./services/trip.service";
     JwtAuthGuard,
     LocationService,
     GreetingService,
+    ReportService,
     SettingService,
     SettingsCacheService,
     MockDataService,

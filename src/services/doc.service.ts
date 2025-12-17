@@ -15,6 +15,7 @@ import {
   Like,
   MoreThan,
   MoreThanOrEqual,
+  LessThanOrEqual,
   Not,
   Repository,
 } from "typeorm";
