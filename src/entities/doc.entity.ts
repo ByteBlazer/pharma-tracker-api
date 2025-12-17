@@ -1,5 +1,6 @@
 import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from "typeorm";
 import { Customer } from "./customer.entity";
+import { Trip } from "./trip.entity";
 
 @Entity("doc")
 export class Doc {
@@ -22,6 +23,10 @@ export class Doc {
 
   @Column({ name: "trip_id", type: "bigint", nullable: true })
   tripId: number;
+
+  @ManyToOne(() => Trip)
+  @JoinColumn({ name: "trip_id" })
+  trip: Trip;
 
   @Column({ name: "doc_date", type: "timestamp" })
   docDate: Date;
