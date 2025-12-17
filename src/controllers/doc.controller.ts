@@ -438,4 +438,44 @@ export class DocController {
       }
     }
   }
+
+  @Get("signature/:docId")
+  @RequireRoles(
+    UserRole.APP_ADMIN,
+    UserRole.APP_TRIP_DRIVER,
+    UserRole.WEB_ACCESS
+  )
+  async getSignatureByDocId(
+    @Param("docId") docId: string,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      const result = await this.docService.getSignatureByDocId(docId);
+
+      res.status(HttpStatus.OK).json({
+        success: result.success,
+        signature: result.signature,
+        lastUpdatedAt: result.lastUpdatedAt,
+      });
+    } catch (error) {
+      console.log(error);
+      if (error instanceof BadRequestException) {
+        res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error instanceof NotFoundException) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Failed to fetch signature",
+          error: error.message,
+        });
+      }
+    }
+  }
 }

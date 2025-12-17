@@ -1781,6 +1781,36 @@ export class DocService {
     };
   }
 
+  async getSignatureByDocId(docId: string): Promise<{
+    success: boolean;
+    signature: string;
+    lastUpdatedAt: Date;
+  }> {
+    const signature = await this.signatureRepository.findOne({
+      where: { docId: docId },
+    });
+
+    if (!signature) {
+      throw new NotFoundException(
+        `No signature found for document with id ${docId}`
+      );
+    }
+
+    // Adjust lastUpdatedAt from UTC to IST (UTC+5:30)
+    // TypeORM reads timestamps as UTC, but database stores them in IST
+    // Add 5 hours 30 minutes (5.5 * 60 * 60 * 1000 milliseconds) to convert to IST
+    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    const lastUpdatedAtIST = signature.lastUpdatedAt
+      ? new Date(signature.lastUpdatedAt.getTime() + istOffset)
+      : signature.lastUpdatedAt;
+
+    return {
+      success: true,
+      signature: signature.signature.toString("base64"),
+      lastUpdatedAt: lastUpdatedAtIST,
+    };
+  }
+
   async getRouteMasterData(): Promise<string[]> {
     // Calculate date range for last 2 months
     const endDate = new Date();

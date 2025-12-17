@@ -117,6 +117,14 @@ export class ReportService {
 
     // Transform results using entity properties
     const reportData = docs.map((doc) => {
+      // Adjust lastUpdatedAt from UTC to IST (UTC+5:30)
+      // TypeORM reads timestamps as UTC, but database stores them in IST
+      // Add 5 hours 30 minutes (5.5 * 60 * 60 * 1000 milliseconds) to convert to IST
+      const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+      const lastUpdatedAtIST = doc.lastUpdatedAt
+        ? new Date(doc.lastUpdatedAt.getTime() + istOffset)
+        : doc.lastUpdatedAt;
+
       return {
         docId: doc.id,
         status: doc.status,
@@ -125,7 +133,7 @@ export class ReportService {
         tripId: doc.tripId,
         comment: doc.comment || "",
         customerId: doc.customerId,
-        lastUpdatedAt: doc.lastUpdatedAt,
+        lastUpdatedAt: lastUpdatedAtIST,
         firmName: doc.customer?.firmName || "",
         address: doc.customer?.address || "",
         city: doc.customer?.city || "",
