@@ -35,6 +35,19 @@ export class ReportService {
       if (daysDiff > GlobalConstants.MAX_DELIVERY_REPORT_DAYS) {
         throw new BadRequestException(`Date range cannot exceed 1 month.`);
       }
+    } else if (
+      // If no date range is provided and either docId or customerId is provided, default to last 1 year
+      // The reason is that if docId and customerId is provided, data set will be small and we can afford to fetch all data for last 1 year.
+      // If date range is provided, then we need to fetch data for the date range.
+      (!queryDto.fromDate || !queryDto.toDate) &&
+      (queryDto.docId?.length >= 3 || queryDto.customerId)
+    ) {
+      // Default to last 1 year
+      endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+      startDate = new Date();
+      startDate.setDate(endDate.getDate() - 365);
+      startDate.setHours(0, 0, 0, 0);
     } else {
       // Default to last 30 days
       endDate = new Date();
@@ -58,7 +71,7 @@ export class ReportService {
       whereConditions.customerId = queryDto.customerId;
     }
     if (queryDto.docId) {
-      whereConditions.id = Like(`%${queryDto.docId}%`);
+      whereConditions.id = Like(`%${queryDto.docId}`);
     }
     if (queryDto.route) {
       whereConditions.route = queryDto.route;
