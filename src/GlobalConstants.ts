@@ -32,6 +32,9 @@ export class GlobalConstants {
   static readonly RESTORE_PASSKEY = "4321"; // Change this to a secure value
   static readonly BACKUP_RECENT_CHECK_MINUTES = 5;
 
+  // Delivery report constants
+  static readonly MAX_DELIVERY_REPORT_DAYS = 32;
+
   // Customer data with cities, pincodes, and routes (100 customers)
   static readonly CUSTOMERS = [
     // Route 1 - Ernakulam

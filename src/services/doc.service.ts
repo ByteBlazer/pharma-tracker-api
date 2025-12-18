@@ -15,8 +15,10 @@ import {
   Like,
   MoreThan,
   MoreThanOrEqual,
+  LessThanOrEqual,
   Not,
   Repository,
+  Between,
 } from "typeorm";
 import axios from "axios";
 
@@ -1777,5 +1779,96 @@ export class DocService {
       signature: recentSignature.signature.toString("base64"),
       lastUpdatedAt: recentSignature.lastUpdatedAt,
     };
+  }
+
+  async getSignatureByDocId(docId: string): Promise<{
+    success: boolean;
+    signature: string;
+    lastUpdatedAt: Date;
+  }> {
+    const signature = await this.signatureRepository.findOne({
+      where: { docId: docId },
+    });
+
+    if (!signature) {
+      throw new NotFoundException(
+        `No signature found for document with id ${docId}`
+      );
+    }
+
+    // Adjust lastUpdatedAt from UTC to IST (UTC+5:30)
+    // TypeORM reads timestamps as UTC, but database stores them in IST
+    // Add 5 hours 30 minutes (5.5 * 60 * 60 * 1000 milliseconds) to convert to IST
+    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    const lastUpdatedAtIST = signature.lastUpdatedAt
+      ? new Date(signature.lastUpdatedAt.getTime() + istOffset)
+      : signature.lastUpdatedAt;
+
+    return {
+      success: true,
+      signature: signature.signature.toString("base64"),
+      lastUpdatedAt: lastUpdatedAtIST,
+    };
+  }
+
+  async getRouteMasterData(): Promise<string[]> {
+    // Calculate date range for last 2 months
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date();
+    startDate.setMonth(endDate.getMonth() - 2);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Query distinct routes from doc table for the last 2 months
+    const docs = await this.docRepository.find({
+      where: {
+        docDate: Between(startDate, endDate),
+      },
+      select: ["route"],
+    });
+
+    // Extract distinct routes and filter out null/empty values
+    const distinctRoutes = Array.from(
+      new Set(
+        docs
+          .map((doc) => doc.route)
+          .filter((route) => route && route.trim() !== "")
+      )
+    );
+
+    // Sort routes alphabetically
+    return distinctRoutes.sort();
+  }
+
+  async getOriginWarehouseMasterData(): Promise<string[]> {
+    // Calculate date range for last 2 months
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date();
+    startDate.setMonth(endDate.getMonth() - 2);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Query distinct originWarehouse from doc table for the last 2 months
+    const docs = await this.docRepository.find({
+      where: {
+        docDate: Between(startDate, endDate),
+      },
+      select: ["originWarehouse"],
+    });
+
+    // Extract distinct originWarehouse and filter out null/empty values
+    const distinctOriginWarehouses = Array.from(
+      new Set(
+        docs
+          .map((doc) => doc.originWarehouse)
+          .filter(
+            (originWarehouse) =>
+              originWarehouse && originWarehouse.trim() !== ""
+          )
+      )
+    );
+
+    // Sort originWarehouse alphabetically
+    return distinctOriginWarehouses.sort();
   }
 }
