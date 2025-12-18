@@ -38,7 +38,7 @@ jobs:
 
       - name: Test SSH connection
         run: |
-          echo "Testing SSH connection to EC2...."
+          echo "Testing SSH connection to EC2..."
           ssh -o ConnectTimeout=10 -o BatchMode=yes ubuntu@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
           echo "✅ SSH connection verified"
 
