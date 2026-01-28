@@ -113,7 +113,8 @@ jobs:
 
           echo "📥 Installing production dependencies..."
           # Install production dependencies on EC2
-          ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && export PATH=\$PATH:/usr/bin:/usr/local/bin && npm ci --omit=dev"
+          echo "🚀 Installing production dependencies with verbose output..."
+          ssh ubuntu@${{ secrets.EC2_HOST }} "cd /opt/pharma-tracker-api/$ENV && export PATH=\$PATH:/usr/bin:/usr/local/bin && npm ci --omit=dev --verbose"
           echo "✅ Dependencies installed"
 
           echo "🛑 Stopping existing service (if running)..."
