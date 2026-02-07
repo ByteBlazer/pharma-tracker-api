@@ -39,7 +39,7 @@ export class AuthService {
     @InjectRepository(UserRoleEntity)
     private userRoleRepository: Repository<UserRoleEntity>,
     private readonly settingsCacheService: SettingsCacheService
-  ) {}
+  ) { }
 
   async generateOtp(authRequestDto: AuthRequestDto, appCode?: string) {
     // Validate user exists and is active
@@ -137,7 +137,7 @@ export class AuthService {
 
       try {
         validateOtpResponse = await axios.get(validateOtpUrl, {
-          timeout: 8000,
+          timeout: 15000,
           headers: {
             "User-Agent": "Mozilla/5.0",
           },
