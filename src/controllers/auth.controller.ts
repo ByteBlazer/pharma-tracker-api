@@ -34,9 +34,9 @@ export class AuthController {
   @Throttle({ default: { limit: 30, ttl: 1 * 60 * 1000 } })
   async generateOtp(
     @Body() authRequestDto: AuthRequestDto,
-    @Query("appCode") appCode?: string
+    @Query("appCode") appCode?: string,
   ) {
-    // You can pass appCode to service if needed, e.g. this.authService.generateOtp(authRequestDto, appCode)
+    // You can pass the appCode to service if needed, e.g. this.authService.generateOtp(authRequestDto, appCode)
     return this.authService.generateOtp(authRequestDto, appCode);
   }
 
@@ -45,7 +45,7 @@ export class AuthController {
   @SkipAuth()
   @Throttle({ default: { limit: 30, ttl: 1 * 60 * 1000 } })
   async validateOtp(
-    @Body() authRequestDto: AuthRequestDto
+    @Body() authRequestDto: AuthRequestDto,
   ): Promise<AuthResponseDto> {
     return this.authService.validateOtp(authRequestDto);
   }
@@ -78,11 +78,11 @@ export class AuthController {
   @RequireRoles(UserRole.WEB_ACCESS)
   async updateBaseLocation(
     @Param("id") locationId: string,
-    @Body() updateBaseLocationDto: UpdateBaseLocationDto
+    @Body() updateBaseLocationDto: UpdateBaseLocationDto,
   ): Promise<BaseLocationOutputDto> {
     return this.authService.updateBaseLocation(
       locationId,
-      updateBaseLocationDto
+      updateBaseLocationDto,
     );
   }
 
@@ -90,7 +90,7 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @RequireRoles(UserRole.WEB_ACCESS)
   async createBaseLocation(
-    @Body() createBaseLocationDto: CreateBaseLocationDto
+    @Body() createBaseLocationDto: CreateBaseLocationDto,
   ): Promise<BaseLocationOutputDto> {
     return this.authService.createBaseLocation(createBaseLocationDto);
   }
@@ -99,7 +99,7 @@ export class AuthController {
   @RequireRoles(UserRole.WEB_ACCESS)
   async updateUser(
     @Param("id") userId: string,
-    @Body() updateUserDto: UpdateUserDto
+    @Body() updateUserDto: UpdateUserDto,
   ): Promise<UserOutputDto> {
     return this.authService.updateUser(userId, updateUserDto);
   }
@@ -108,7 +108,7 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @RequireRoles(UserRole.WEB_ACCESS)
   async createUser(
-    @Body() createUserDto: CreateUserDto
+    @Body() createUserDto: CreateUserDto,
   ): Promise<UserOutputDto> {
     return this.authService.createUser(createUserDto);
   }
