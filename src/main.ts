@@ -36,7 +36,7 @@ function loadAWSCredentials() {
     if (!fs.existsSync(credentialsPath)) {
       console.warn("⚠️  AWS credentials file not found at:", credentialsPath);
       console.warn(
-        "⚠️  Using placeholder values. Install AWS CLI and configure credentials to use actual values."
+        "⚠️  Using placeholder values. Install AWS CLI and configure credentials to use actual values.",
       );
       return;
     }
@@ -87,7 +87,7 @@ function loadAWSCredentials() {
     } else {
       console.warn("⚠️  Could not parse AWS credentials from file");
       console.warn(
-        "   Make sure your credentials file has a [default] profile"
+        "   Make sure your credentials file has a [default] profile",
       );
     }
   } catch (error) {
@@ -110,7 +110,7 @@ function configureAxiosLogging() {
       if (error.response) {
         // Server responded with error status
         console.error(
-          `❌ HTTP ${error.response.status}: ${error.response.statusText}`
+          `❌ HTTP ${error.response.status}: ${error.response.statusText}`,
         );
         if (error.response.data) {
           // Log response data if it's a string or simple object
@@ -152,7 +152,7 @@ function configureAxiosLogging() {
 
       // Return the error to be handled by the calling code
       return Promise.reject(error);
-    }
+    },
   );
 
   console.log("🔧 Axios global error logging configured");
@@ -177,11 +177,12 @@ async function bootstrap() {
 
   // Enable CORS only in local environment
 
-  if (process.platform === "win32") {
+  if (
+    process.platform === "win32" ||
+    os.hostname().endsWith("ubuntu-desktop")
+  ) {
     app.enableCors();
-    console.log(
-      "🌐 CORS enabled as we are on Windows,and hence local development"
-    );
+    console.log("🌐 CORS enabled as we are on non-production environment");
   }
 
   // Global validation pipe
@@ -190,12 +191,12 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    })
+    }),
   );
 
   // Global throttling is configured via APP_GUARD in AppModule
   console.log(
-    "🛡️  Global throttling: 500 requests per 1 minute (configured via ThrottlerModule)"
+    "🛡️  Global throttling: 500 requests per 1 minute (configured via ThrottlerModule)",
   );
 
   // Global JWT authentication guard

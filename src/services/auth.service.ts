@@ -25,6 +25,7 @@ import { UserRole } from "../enums/user-role.enum";
 import { GlobalConstants } from "../GlobalConstants";
 import { JwtPayload } from "../interfaces/jwt-payload.interface";
 import { SettingsCacheService } from "./settings-cache.service";
+import * as os from "os";
 
 @Injectable()
 export class AuthService {
@@ -38,17 +39,20 @@ export class AuthService {
     private baseLocationRepository: Repository<BaseLocation>,
     @InjectRepository(UserRoleEntity)
     private userRoleRepository: Repository<UserRoleEntity>,
-    private readonly settingsCacheService: SettingsCacheService
-  ) { }
+    private readonly settingsCacheService: SettingsCacheService,
+  ) {}
 
   async generateOtp(authRequestDto: AuthRequestDto, appCode?: string) {
     // Validate user exists and is active
     await this.checkUser(authRequestDto.mobile);
 
     // If running on Windows, skip SMS generation and return
-    if (process.platform === "win32") {
+    if (
+      process.platform === "win32" ||
+      os.hostname().endsWith("ubuntu-desktop")
+    ) {
       console.log(
-        `Windows environment: Skipping SMS generation for mobile ${authRequestDto.mobile}`
+        `Windows environment: Skipping SMS generation for mobile ${authRequestDto.mobile}`,
       );
       return;
     }
@@ -68,7 +72,7 @@ export class AuthService {
     const generateOtpUrl =
       GlobalConstants.SMS_GENERATE_OTP_TEMPLATE.replace(
         "{apikey}",
-        GlobalConstants.SMS_API_KEY
+        GlobalConstants.SMS_API_KEY,
       )
         .replace("{mobilePhone}", authRequestDto.mobile)
         .replace("{otpTemplateName}", GlobalConstants.SMS_OTP_TEMPLATE) +
@@ -84,11 +88,11 @@ export class AuthService {
         },
       });
       console.log(
-        `OTP generated successfully for valid user with mobile phone: ${authRequestDto.mobile}`
+        `OTP generated successfully for valid user with mobile phone: ${authRequestDto.mobile}`,
       );
     } catch (error) {
       console.log(
-        `Internal server error while trying to generate OTP for mobile phone: ${authRequestDto.mobile}`
+        `Internal server error while trying to generate OTP for mobile phone: ${authRequestDto.mobile}`,
       );
       throw new InternalServerErrorException("Failed to generate OTP");
     }
@@ -101,9 +105,12 @@ export class AuthService {
     let skip = false;
 
     // If running on Windows, skip OTP validation and return a JWT token
-    if (process.platform === "win32") {
+    if (
+      process.platform === "win32" ||
+      os.hostname().endsWith("ubuntu-desktop")
+    ) {
       console.log(
-        `Windows environment: Skipping OTP validation for mobile ${authRequestDto.mobile}`
+        `Windows environment: Skipping OTP validation for mobile ${authRequestDto.mobile}`,
       );
       skip = true;
     }
@@ -128,7 +135,7 @@ export class AuthService {
     if (!skip) {
       const validateOtpUrl = GlobalConstants.SMS_VALIDATE_OTP_TEMPLATE.replace(
         "{apikey}",
-        GlobalConstants.SMS_API_KEY
+        GlobalConstants.SMS_API_KEY,
       )
         .replace("{mobilePhone}", authRequestDto.mobile)
         .replace("{otp}", authRequestDto.otp);
@@ -144,7 +151,7 @@ export class AuthService {
         });
       } catch (error) {
         console.log(
-          `Internal server error while trying to validate OTP for mobile phone: ${authRequestDto.mobile}`
+          `Internal server error while trying to validate OTP for mobile phone: ${authRequestDto.mobile}`,
         );
         throw new InternalServerErrorException("Failed to validate OTP");
       }
@@ -154,7 +161,7 @@ export class AuthService {
         validateOtpResponse.data.Status != "Success"
       ) {
         console.log(
-          `OTP validation failed for user with mobile phone: ${authRequestDto.mobile}`
+          `OTP validation failed for user with mobile phone: ${authRequestDto.mobile}`,
         );
         throw new UnauthorizedException("Invalid OTP");
       }
@@ -215,14 +222,14 @@ export class AuthService {
     if (!user) {
       console.log(`Trying to access with unregistered mobile phone: ${mobile}`);
       throw new BadRequestException(
-        "Mobile phone not registered with PharmaTracker"
+        "Mobile phone not registered with PharmaTracker",
       );
     }
 
     if (!user.isActive) {
       console.log(`Trying to access with inactive user account: ${mobile}`);
       throw new BadRequestException(
-        "User account linked to this mobile phone has been marked as inactive"
+        "User account linked to this mobile phone has been marked as inactive",
       );
     }
 
@@ -293,7 +300,7 @@ export class AuthService {
 
     if (existingUser) {
       throw new BadRequestException(
-        "User with this mobile number already exists"
+        "User with this mobile number already exists",
       );
     }
 
@@ -304,7 +311,7 @@ export class AuthService {
 
     if (!baseLocation) {
       throw new BadRequestException(
-        "Base location with the provided ID does not exist"
+        "Base location with the provided ID does not exist",
       );
     }
 
@@ -346,7 +353,7 @@ export class AuthService {
 
         const savedUser = await transactionalEntityManager.save(
           AppUser,
-          newUser
+          newUser,
         );
         createdUserId = savedUser.id;
 
@@ -355,11 +362,11 @@ export class AuthService {
           transactionalEntityManager.create(AppUserXUserRole, {
             appUserId: savedUser.id,
             roleName: role,
-          })
+          }),
         );
 
         await transactionalEntityManager.save(AppUserXUserRole, userRoles);
-      }
+      },
     );
 
     // Return the created user using the existing getUserById method
@@ -432,14 +439,14 @@ export class AuthService {
       (location) => ({
         id: location.id,
         name: location.name,
-      })
+      }),
     );
 
     return baseLocationOutputs;
   }
 
   async createBaseLocation(
-    createBaseLocationDto: CreateBaseLocationDto
+    createBaseLocationDto: CreateBaseLocationDto,
   ): Promise<BaseLocationOutputDto> {
     // Generate a unique ID for the base location - one greater than the greatest existing numeric ID
     const allBaseLocations = await this.baseLocationRepository.find({
@@ -465,9 +472,8 @@ export class AuthService {
       name: createBaseLocationDto.name,
     });
 
-    const savedLocation = await this.baseLocationRepository.save(
-      newBaseLocation
-    );
+    const savedLocation =
+      await this.baseLocationRepository.save(newBaseLocation);
 
     const locationOutput: BaseLocationOutputDto = {
       id: savedLocation.id,
@@ -479,7 +485,7 @@ export class AuthService {
 
   async updateBaseLocation(
     locationId: string,
-    updateBaseLocationDto: UpdateBaseLocationDto
+    updateBaseLocationDto: UpdateBaseLocationDto,
   ): Promise<BaseLocationOutputDto> {
     // Check if base location exists
     const existingLocation = await this.baseLocationRepository.findOne({
@@ -520,15 +526,15 @@ export class AuthService {
     if (invalidRoles.length > 0) {
       throw new BadRequestException(
         `Invalid roles: ${invalidRoles.join(
-          ", "
-        )}. Valid roles are: ${validRoleNames.join(", ")}`
+          ", ",
+        )}. Valid roles are: ${validRoleNames.join(", ")}`,
       );
     }
   }
 
   async updateUser(
     userId: string,
-    updateUserDto: UpdateUserDto
+    updateUserDto: UpdateUserDto,
   ): Promise<UserOutputDto> {
     // Check if user exists
     const existingUser = await this.appUserRepository.findOne({
@@ -547,7 +553,7 @@ export class AuthService {
 
       if (userWithSameMobile && userWithSameMobile.id !== userId) {
         throw new BadRequestException(
-          "Mobile number is already in use by another user"
+          "Mobile number is already in use by another user",
         );
       }
     }
@@ -560,7 +566,7 @@ export class AuthService {
 
       if (!baseLocation) {
         throw new BadRequestException(
-          "Base location with the provided ID does not exist"
+          "Base location with the provided ID does not exist",
         );
       }
     }
@@ -592,12 +598,12 @@ export class AuthService {
             transactionalEntityManager.create(AppUserXUserRole, {
               appUserId: userId,
               roleName: role,
-            })
+            }),
           );
 
           await transactionalEntityManager.save(AppUserXUserRole, userRoles);
         }
-      }
+      },
     );
 
     // Return the updated user using the existing getUserById method
