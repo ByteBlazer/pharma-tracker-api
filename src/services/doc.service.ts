@@ -1796,18 +1796,25 @@ export class DocService {
       );
     }
 
+    // COMMENTING THIS AS PRAVEEN REPORTED ISSUE WITH TIME IN SIGNATURE WHILE TAKING REPORT FROM REPORT SCREEN
     // Adjust lastUpdatedAt from UTC to IST (UTC+5:30)
     // TypeORM reads timestamps as UTC, but database stores them in IST
     // Add 5 hours 30 minutes (5.5 * 60 * 60 * 1000 milliseconds) to convert to IST
-    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
-    const lastUpdatedAtIST = signature.lastUpdatedAt
-      ? new Date(signature.lastUpdatedAt.getTime() + istOffset)
-      : signature.lastUpdatedAt;
+    // const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    // const lastUpdatedAtIST = signature.lastUpdatedAt
+    //   ? new Date(signature.lastUpdatedAt.getTime() + istOffset)
+    //   : signature.lastUpdatedAt;
+
+    // return {
+    //   success: true,
+    //   signature: signature.signature.toString("base64"),
+    //   lastUpdatedAt: lastUpdatedAtIST,
+    // };
 
     return {
       success: true,
       signature: signature.signature.toString("base64"),
-      lastUpdatedAt: lastUpdatedAtIST,
+      lastUpdatedAt: signature.lastUpdatedAt,
     };
   }
 
