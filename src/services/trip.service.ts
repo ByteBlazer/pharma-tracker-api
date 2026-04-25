@@ -545,8 +545,12 @@ export class TripService {
     });
 
     if (associatedDocs.length === 0) {
+      // Invoke the cancel trip logic internally since the trip has no associated documents.
+      // We do not want to leave a trip in a SCHEDULED state with no docs.
+      await this.cancelTrip(tripId, loggedInUser);
+      
       throw new BadRequestException(
-        `Trip #${tripId} has no associated documents. A trip must have at least one document to be started.`
+        `Trip #${tripId} has no associated documents. This trip has been cancelled automatically.`
       );
     }
 
