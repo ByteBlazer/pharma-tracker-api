@@ -177,13 +177,19 @@ async function bootstrap() {
 
   // Enable CORS only in local environment
 
-  if (
-    process.platform === "win32" ||
-    os.hostname().endsWith("ubuntu-desktop")
-  ) {
-    app.enableCors();
-    console.log("🌐 CORS enabled as we are on non-production environment");
-  }
+  // if (
+  //   process.platform === "win32" ||
+  //   os.hostname().endsWith("ubuntu-desktop")
+  // ) {
+  //   app.enableCors();
+  //   console.log("🌐 CORS enabled as we are on non-production environment");
+  // }
+
+  app.enableCors({
+    origin: true, // reflect request Origin (mpcpharma.in, localhost, etc.)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
 
   // Global validation pipe
   app.useGlobalPipes(
