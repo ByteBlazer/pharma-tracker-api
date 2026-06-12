@@ -510,9 +510,9 @@ export class DocService {
     const lastScan = await this.docRepository.findOne({
       where: {
         lastScannedBy: loggedInUser.id,
-        lastUpdatedAt: MoreThan(timeoutAgo),
+        createdAt: MoreThan(timeoutAgo),
       },
-      order: { lastUpdatedAt: "DESC" },
+      order: { createdAt: "DESC" },
     });
 
     if (lastScan) {
